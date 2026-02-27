@@ -12,7 +12,8 @@ import {
   Instagram,
   Calendar,
   ArrowUpDown,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { Customer, CustomerStatus, Interaction, Deal, DealStage, Task } from '../types';
 
@@ -77,6 +78,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     observacao: ''
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
   const [newCustomer, setNewCustomer] = useState<Partial<Customer> & { funnelStage?: DealStage | '', lembreteData?: string, lembreteHora?: string }>({
     name: '',
     instagramUrl: '',
@@ -565,9 +567,21 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 text-zinc-500 hover:text-white transition-colors">
-                      <MoreHorizontal size={20} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button className="p-2 text-zinc-500 hover:text-white transition-colors">
+                        <MoreHorizontal size={20} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCustomerToDelete(customer.id);
+                        }}
+                        className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                        title="Excluir Lead"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )})}
@@ -583,6 +597,38 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal for Table */}
+      {customerToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-950 border border-zinc-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-6">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/10 mb-4 mx-auto">
+              <AlertCircle className="text-red-500" size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-white text-center mb-2">Excluir Lead</h3>
+            <p className="text-zinc-400 text-center mb-6">
+              Tem certeza que deseja excluir este lead? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setCustomerToDelete(null)}
+                className="flex-1 px-4 py-2 bg-zinc-900 text-white font-semibold rounded-xl hover:bg-zinc-800 transition-colors border border-zinc-800"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={() => {
+                  handleDeleteCustomer(customerToDelete);
+                  setCustomerToDelete(null);
+                }}
+                className="flex-1 px-4 py-2 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-colors"
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Novo Lead */}
       {isModalOpen && (

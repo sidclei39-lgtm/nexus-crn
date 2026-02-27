@@ -7,14 +7,27 @@ import Agenda, { initialTasks } from './components/Agenda';
 import FinancialDashboard from './components/FinancialDashboard';
 import PatientManagement from './components/PatientManagement';
 import ClientDashboard from './components/ClientDashboard';
-import { Bell, Search, User } from 'lucide-react';
+import Login from './components/Login';
+import ClientPortal from './components/ClientPortal';
+import { Bell, Search, User, LogOut } from 'lucide-react';
 import { Customer, Deal, Task, Patient } from './types';
 
 export default function App() {
+  const [userRole, setUserRole] = useState<'admin' | 'client' | null>(null);
+  const [loggedInPatientId, setLoggedInPatientId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [deals, setDeals] = useState<Deal[]>(initialDeals);
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const saved = localStorage.getItem('customers');
+    return saved ? JSON.parse(saved) : initialCustomers;
+  });
+  const [deals, setDeals] = useState<Deal[]>(() => {
+    const saved = localStorage.getItem('deals');
+    return saved ? JSON.parse(saved) : initialDeals;
+  });
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem('tasks');
+    return saved ? JSON.parse(saved) : initialTasks;
+  });
   const [patients, setPatients] = useState<Patient[]>(() => {
     const saved = localStorage.getItem('patients');
     return saved ? JSON.parse(saved) : [];
@@ -23,6 +36,18 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('patients', JSON.stringify(patients));
   }, [patients]);
+
+  useEffect(() => {
+    localStorage.setItem('customers', JSON.stringify(customers));
+  }, [customers]);
+
+  useEffect(() => {
+    localStorage.setItem('deals', JSON.stringify(deals));
+  }, [deals]);
+
+  useEffect(() => {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
   const renderAdminContent = () => {
     switch (activeTab) {
@@ -37,9 +62,29 @@ export default function App() {
     }
   };
 
+  if (!userRole) {
+    return (
+      <Login 
+        onLoginAdmin={() => setUserRole('admin')} 
+        onLoginClient={(id) => { setUserRole('client'); setLoggedInPatientId(id); }} 
+        patients={patients} 
+      />
+    );
+  }
+
+  if (userRole === 'client' && loggedInPatientId) {
+    return (
+      <ClientPortal 
+        patientId={loggedInPatientId} 
+        patients={patients} 
+        onLogout={() => { setUserRole(null); setLoggedInPatientId(null); }} 
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen bg-black text-zinc-200 font-sans selection:bg-emerald-500/30">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => setUserRole(null)} />
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -68,6 +113,13 @@ export default function App() {
                 <User size={20} />
               </div>
             </div>
+            <button 
+              onClick={() => setUserRole(null)}
+              className="p-2 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+              title="Sair"
+            >
+              <LogOut size={20} />
+            </button>
           </div>
         </header>
 

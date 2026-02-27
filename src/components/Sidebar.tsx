@@ -19,9 +19,10 @@ function cn(...inputs: ClassValue[]) {
 type SidebarProps = {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onLogout: () => void;
 };
 
-export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'crm', label: 'Leads', icon: Users },
@@ -74,7 +75,10 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
             <span className="font-medium">Configurações</span>
           </div>
         </button>
-        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-zinc-400 hover:bg-red-950/20 hover:text-red-400 transition-all duration-300 group">
+        <button 
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-zinc-400 hover:bg-red-950/20 hover:text-red-400 transition-all duration-300 group"
+        >
           <div className="flex items-center gap-3 transition-transform duration-300 group-hover:translate-x-1">
             <LogOut size={20} className="text-zinc-500 group-hover:text-red-400 transition-colors" />
             <span className="font-medium">Sair</span>

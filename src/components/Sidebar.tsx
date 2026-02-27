@@ -5,7 +5,9 @@ import {
   Calendar, 
   Settings,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  DollarSign,
+  HeartPulse
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -22,8 +24,11 @@ type SidebarProps = {
 export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'crm', label: 'Clientes', icon: Users },
+    { id: 'crm', label: 'Leads', icon: Users },
+    { id: 'patients', label: 'Gestão de Pacientes', icon: HeartPulse },
+    { id: 'client_dashboard', label: 'Dashboard de Leads', icon: LayoutDashboard },
     { id: 'funnel', label: 'Funil de Vendas', icon: Trello },
+    { id: 'finance', label: 'Financeiro', icon: DollarSign },
     { id: 'agenda', label: 'Agenda', icon: Calendar },
   ];
 

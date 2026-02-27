@@ -5,6 +5,7 @@ export type Interaction = {
   titulo: string;
   data: string;
   observacao: string;
+  tipo_contato?: string; // e.g., "Contato 1", "Contato 2"
 };
 
 export type Customer = {
@@ -43,6 +44,10 @@ export type Deal = {
   stage: DealStage;
   probability: number;
   expectedCloseDate: string;
+  paymentMethod?: 'pix_vista' | 'pix_parcelado' | 'card';
+  installments?: number;
+  paymentConfirmed?: boolean;
+  planType?: 'mensal' | 'trimestral' | 'semestral';
 };
 
 export type Task = {
@@ -127,4 +132,18 @@ export type Referral = {
   referredEmail: string;
   status: 'pending' | 'completed';
   rewardApplied: boolean;
+};
+
+export type PlanType = 'mensal' | 'trimestral' | 'semestral';
+
+export type Patient = {
+  id: string;
+  name: string;
+  plan: PlanType;
+  startDate: string;
+  endDate: string;
+  status: 'ATIVO' | 'VENCIDO' | 'INATIVO';
+  value: number;
+  paymentMethod: 'pix' | 'card';
+  installments: number;
 };

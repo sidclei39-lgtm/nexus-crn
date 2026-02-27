@@ -14,7 +14,7 @@ import {
   ArrowUpDown,
   AlertCircle
 } from 'lucide-react';
-import { Customer, CustomerStatus } from '../types';
+import { Customer, CustomerStatus, Interaction, Deal, DealStage, Task } from '../types';
 
 export const initialCustomers: Customer[] = [
   { id: '1', name: 'Fabio dropshing', instagramUrl: 'https://surl.li/bgroia', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '13/02/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '16/02/2026', contatado: 'Sim', diasProximoContato: -10, email: '', phone: '', company: '', createdAt: '2026-02-13' },
@@ -48,10 +48,15 @@ export const initialCustomers: Customer[] = [
 interface CRMProps {
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
+  deals: Deal[];
+  setDeals: React.Dispatch<React.SetStateAction<Deal[]>>;
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
 }
 
-export default function CRM({ customers, setCustomers }: CRMProps) {
+export default function CRM({ customers, setCustomers, deals, setDeals, tasks, setTasks }: CRMProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterContact, setFilterContact] = useState<string>('all');
   const [sortColumn, setSortColumn] = useState<keyof Customer | 'diasProximoContato'>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,7 +77,7 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
     observacao: ''
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [newCustomer, setNewCustomer] = useState<Partial<Customer>>({
+  const [newCustomer, setNewCustomer] = useState<Partial<Customer> & { funnelStage?: DealStage | '', lembreteData?: string, lembreteHora?: string }>({
     name: '',
     instagramUrl: '',
     origem: 'Instagram',
@@ -91,14 +96,23 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
     valor: '',
     diasProximoContato: 0,
     conversao: '',
-    observacoes: ''
+    observacoes: '',
+    funnelStage: '',
+    lembreteData: '',
+    lembreteHora: ''
   });
 
-  const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.objetivo && c.objetivo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (c.status && c.status.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredCustomers = customers.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.objetivo && c.objetivo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (c.status && c.status.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const contactCount = c.historico_contatos?.length || 0;
+    const matchesContact = filterContact === 'all' || 
+      (filterContact === '5+' ? contactCount >= 5 : contactCount.toString() === filterContact);
+
+    return matchesSearch && matchesContact;
+  });
 
   const handleSort = (column: keyof Customer | 'diasProximoContato') => {
     if (sortColumn === column) {
@@ -149,9 +163,42 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
       };
       
       setCustomers(customers.map(c => c.id === editingCustomerId ? updatedCustomer : c));
+
+      // Update existing deal if funnelStage is selected
+      if (newCustomer.funnelStage) {
+        const existingDeal = deals.find(d => d.customerId === editingCustomerId);
+        if (existingDeal) {
+          setDeals(deals.map(d => d.id === existingDeal.id ? { ...d, stage: newCustomer.funnelStage as DealStage } : d));
+        } else {
+          // Create new deal if it doesn't exist
+          const newDeal: Deal = {
+            id: Math.random().toString(36).substr(2, 9),
+            title: `Negócio - ${updatedCustomer.name}`,
+            customerId: updatedCustomer.id,
+            value: Number(updatedCustomer.valor?.replace(/[^0-9.-]+/g,"")) || 0,
+            stage: newCustomer.funnelStage as DealStage,
+            probability: 50,
+            expectedCloseDate: new Date().toISOString().split('T')[0],
+          };
+          setDeals([newDeal, ...deals]);
+        }
+      }
+      if (newCustomer.lembreteData && newCustomer.lembreteHora) {
+        const startDateTime = new Date(`${newCustomer.lembreteData}T${newCustomer.lembreteHora}`).toISOString();
+        const newTask: Task = {
+          id: Math.random().toString(36).substr(2, 9),
+          title: `Follow-up: ${updatedCustomer.name}`,
+          description: `Lembrete de follow-up para o lead ${updatedCustomer.name}`,
+          date: startDateTime,
+          completed: false,
+          customerId: updatedCustomer.id
+        };
+        setTasks([...tasks, newTask]);
+      }
     } else {
+      const newId = Math.random().toString(36).substr(2, 9);
       const customer: Customer = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: newId,
         name: newCustomer.name || '',
         instagramUrl: newCustomer.instagramUrl || '',
         origem: newCustomer.origem || 'Instagram',
@@ -176,6 +223,31 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
       };
 
       setCustomers([customer, ...customers]);
+
+      if (newCustomer.funnelStage) {
+        const newDeal: Deal = {
+          id: Math.random().toString(36).substr(2, 9),
+          title: `Negócio - ${customer.name}`,
+          customerId: customer.id,
+          value: Number(customer.valor?.replace(/[^0-9.-]+/g,"")) || 0,
+          stage: newCustomer.funnelStage as DealStage,
+          probability: 50,
+          expectedCloseDate: new Date().toISOString().split('T')[0],
+        };
+        setDeals([newDeal, ...deals]);
+      }
+      if (newCustomer.lembreteData && newCustomer.lembreteHora) {
+        const startDateTime = new Date(`${newCustomer.lembreteData}T${newCustomer.lembreteHora}`).toISOString();
+        const newTask: Task = {
+          id: Math.random().toString(36).substr(2, 9),
+          title: `Follow-up: ${customer.name}`,
+          description: `Lembrete de follow-up para o lead ${customer.name}`,
+          date: startDateTime,
+          completed: false,
+          customerId: customer.id
+        };
+        setTasks([...tasks, newTask]);
+      }
     }
     
     setIsModalOpen(false);
@@ -199,7 +271,10 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
       valor: '',
       diasProximoContato: 0,
       conversao: '',
-      observacoes: ''
+      observacoes: '',
+      funnelStage: '',
+      lembreteData: '',
+      lembreteHora: ''
     });
   };
 
@@ -216,11 +291,12 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
       hour: '2-digit', minute: '2-digit' 
     });
 
-    const interaction = {
+    const interaction: Interaction = {
       id: Math.random().toString(36).substr(2, 9),
-      titulo: `${count}º Contato`,
+      titulo: `Contato ${count}`,
       data: dataFormatada,
-      observacao: newInteractionData.observacao.trim()
+      observacao: newInteractionData.observacao.trim(),
+      tipo_contato: `Contato ${count}`
     };
     
     // Calcula diasProximoContato
@@ -330,7 +406,7 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Leads & Clientes</h2>
+          <h2 className="text-2xl font-bold text-white">Leads</h2>
           <p className="text-zinc-400">Gerencie sua base de contatos, origens e acompanhamentos.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -360,10 +436,25 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-white transition-colors">
-            <Filter size={18} />
-            Filtros
-          </button>
+          <div className="flex items-center gap-3">
+            <select
+              value={filterContact}
+              onChange={(e) => setFilterContact(e.target.value)}
+              className="bg-zinc-800 border-none rounded-xl px-4 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none cursor-pointer"
+            >
+              <option value="all">Todos os Contatos</option>
+              <option value="0">Sem Contato</option>
+              <option value="1">Contato 1</option>
+              <option value="2">Contato 2</option>
+              <option value="3">Contato 3</option>
+              <option value="4">Contato 4</option>
+              <option value="5+">Contato 5+</option>
+            </select>
+            <button className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-white transition-colors">
+              <Filter size={18} />
+              Filtros
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -443,8 +534,15 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                         <Calendar size={14} />
                         {customer.proxContato || '-'}
                       </div>
-                      <div className="text-xs text-zinc-500">
-                        Dias: <span className={customer.diasProximoContato && customer.diasProximoContato <= 0 ? 'text-red-400 font-bold' : 'text-emerald-400'}>{customer.diasProximoContato ?? '-'}</span>
+                      <div className="flex flex-col gap-1">
+                        <div className="text-xs text-zinc-500">
+                          Dias: <span className={customer.diasProximoContato !== undefined && customer.diasProximoContato <= 0 ? 'text-red-400 font-bold' : 'text-emerald-400'}>{customer.diasProximoContato ?? '-'}</span>
+                        </div>
+                        {customer.diasProximoContato !== undefined && customer.diasProximoContato <= 0 && (customer.status === 'Lead' || customer.status === 'Follow up') && (
+                          <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 w-fit">
+                            ATRASADO {Math.abs(customer.diasProximoContato)} DIAS
+                          </span>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -601,6 +699,24 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                     </select>
                   </div>
                   <div className="space-y-2">
+                    <label className="text-sm font-medium text-zinc-400">Etapa do Funil</label>
+                    <select 
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all appearance-none"
+                      value={newCustomer.funnelStage || ''}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, funnelStage: e.target.value as DealStage | '' })}
+                    >
+                      <option value="">Não adicionar ao funil</option>
+                      <option value="lead">Prospecção</option>
+                      <option value="contact">Contato</option>
+                      <option value="proposal">Proposta</option>
+                      <option value="negotiation">Negociação</option>
+                      <option value="closed">Fechado</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <label className="text-sm font-medium text-zinc-400">Contatado?</label>
                     <select 
                       className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all appearance-none"
@@ -611,9 +727,6 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                       <option value="Sim">Sim</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-zinc-400">1° Contato</label>
                     <input 
@@ -623,6 +736,9 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                       onChange={(e) => setNewCustomer({ ...newCustomer, primeiroContato: e.target.value })}
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-zinc-400">Último Contato</label>
                     <input 
@@ -663,6 +779,26 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-zinc-400">Definir Lembrete (Data)</label>
+                    <input 
+                      type="date"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                      value={newCustomer.lembreteData}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, lembreteData: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-zinc-400">Hora do Lembrete</label>
+                    <input 
+                      type="time"
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                      value={newCustomer.lembreteHora}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, lembreteHora: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Venda */}
@@ -695,14 +831,17 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-400">Pacote</label>
-                    <input 
-                      type="text"
-                      placeholder="Ex: Trimestral"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                    <label className="text-sm font-medium text-zinc-400">Pacote / Plano</label>
+                    <select 
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all appearance-none"
                       value={newCustomer.pacote}
                       onChange={(e) => setNewCustomer({ ...newCustomer, pacote: e.target.value })}
-                    />
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Plano Mensal">Plano Mensal</option>
+                      <option value="Plano Trimestral">Plano Trimestral</option>
+                      <option value="Plano Semestral">Plano Semestral</option>
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-zinc-400">Valor</label>
@@ -774,11 +913,11 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
           </div>
         </div>
       )}
-      {/* Modal Detalhes do Lead */}
+      {/* Side Drawer Detalhes do Lead */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-950 border border-zinc-800 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between shrink-0">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-950 border-l border-zinc-800 w-full max-w-2xl shadow-2xl overflow-hidden animate-in slide-in-from-right duration-300 flex flex-col h-full">
+            <div className="p-6 border-b border-zinc-800 flex items-center justify-between shrink-0 bg-zinc-950/95 backdrop-blur z-10">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-emerald-500 font-bold border border-zinc-700 text-xl">
                   {selectedCustomer.name.charAt(0).toUpperCase()}
@@ -790,7 +929,7 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                     onChange={(e) => setSelectedCustomer({...selectedCustomer, name: e.target.value})}
                     className="text-xl font-bold text-white bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-emerald-500 outline-none px-1 -ml-1 transition-colors"
                   />
-                  <div className="mt-1">
+                  <div className="mt-1 flex items-center gap-2">
                     <select
                       value={selectedCustomer.status}
                       onChange={(e) => setSelectedCustomer({...selectedCustomer, status: e.target.value as CustomerStatus})}
@@ -803,14 +942,19 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                       <option value="active" className="bg-zinc-900 text-white">Ativo</option>
                       <option value="inactive" className="bg-zinc-900 text-white">Inativo</option>
                     </select>
+                    {selectedCustomer.diasProximoContato !== undefined && selectedCustomer.diasProximoContato <= 0 && (
+                      <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
+                        ATRASADO {Math.abs(selectedCustomer.diasProximoContato)} DIAS
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
               <button 
                 onClick={() => setSelectedCustomer(null)}
-                className="text-zinc-500 hover:text-white transition-colors"
+                className="text-zinc-500 hover:text-white transition-colors p-2 hover:bg-zinc-900 rounded-full"
               >
-                <X size={20} />
+                <X size={24} />
               </button>
             </div>
             
@@ -959,7 +1103,7 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                     <div className="flex items-center justify-between mb-4">
                       <h5 className="text-emerald-500 font-bold flex items-center gap-2">
                         <span className="bg-emerald-500/20 px-2 py-1 rounded-md text-sm">
-                          {(selectedCustomer.historico_contatos?.length || 0) + 1}º Contato
+                          Contato {(selectedCustomer.historico_contatos?.length || 0) + 1}
                         </span>
                         Novo Registro
                       </h5>
@@ -1044,72 +1188,94 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                   </div>
                 )}
 
-                {/* Lista de Interações */}
-                <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                {/* Lista de Interações - Timeline Vertical */}
+                <div className="relative pl-4 space-y-8 mb-6 max-h-[400px] overflow-y-auto custom-scrollbar pr-2 pt-2">
+                  {/* Linha vertical da timeline */}
+                  <div className="absolute left-[23px] top-4 bottom-4 w-0.5 bg-zinc-800/50" />
+
                   {selectedCustomer.historico_contatos && selectedCustomer.historico_contatos.length > 0 ? (
                     selectedCustomer.historico_contatos.map((interaction) => (
-                      <div key={interaction.id} className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-4 group">
-                        {editingInteractionId === interaction.id ? (
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs font-bold text-emerald-500">{interaction.titulo}</span>
-                              <input 
-                                type="text"
-                                value={editingInteractionData.data}
-                                onChange={(e) => setEditingInteractionData({...editingInteractionData, data: e.target.value})}
-                                className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:border-emerald-500 outline-none w-32 text-right"
-                                placeholder="DD/MM/AAAA HH:mm"
+                      <div key={interaction.id} className="relative pl-10 group">
+                        {/* Ícone da timeline */}
+                        <div className="absolute left-0 top-0 w-12 h-12 flex items-center justify-center">
+                          <div className="w-3 h-3 rounded-full bg-zinc-900 border-2 border-emerald-500 z-10 relative shadow-[0_0_10px_rgba(16,185,129,0.3)]"></div>
+                        </div>
+
+                        <div className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 p-4 hover:border-emerald-500/30 transition-all group-hover:bg-zinc-900/50">
+                          {editingInteractionId === interaction.id ? (
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">{interaction.titulo}</span>
+                                <input 
+                                  type="text"
+                                  value={editingInteractionData.data}
+                                  onChange={(e) => setEditingInteractionData({...editingInteractionData, data: e.target.value})}
+                                  className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:border-emerald-500 outline-none w-32 text-right"
+                                  placeholder="DD/MM/AAAA HH:mm"
+                                />
+                              </div>
+                              <textarea 
+                                rows={3}
+                                value={editingInteractionData.observacao}
+                                onChange={(e) => setEditingInteractionData({...editingInteractionData, observacao: e.target.value})}
+                                className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none resize-none"
                               />
-                            </div>
-                            <textarea 
-                              rows={3}
-                              value={editingInteractionData.observacao}
-                              onChange={(e) => setEditingInteractionData({...editingInteractionData, observacao: e.target.value})}
-                              className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 outline-none resize-none"
-                            />
-                            <div className="flex justify-end gap-2 mt-2">
-                              <button 
-                                onClick={() => setEditingInteractionId(null)}
-                                className="px-3 py-1.5 bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-lg hover:bg-zinc-700 transition-colors"
-                              >
-                                Cancelar
-                              </button>
-                              <button 
-                                onClick={() => handleSaveInteractionEdit(interaction.id)}
-                                className="px-3 py-1.5 bg-emerald-500 text-black text-xs font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
-                              >
-                                Salvar
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="text-xs font-bold text-emerald-500">{interaction.titulo}</span>
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs text-zinc-500">{interaction.data}</span>
+                              <div className="flex justify-end gap-2 mt-2">
                                 <button 
-                                  onClick={() => {
-                                    setEditingInteractionId(interaction.id);
-                                    setEditingInteractionData({
-                                      data: interaction.data,
-                                      observacao: interaction.observacao
-                                    });
-                                  }}
-                                  className="text-zinc-500 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="Editar Contato"
+                                  onClick={() => setEditingInteractionId(null)}
+                                  className="px-3 py-1.5 bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-lg hover:bg-zinc-700 transition-colors"
                                 >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                                  Cancelar
+                                </button>
+                                <button 
+                                  onClick={() => handleSaveInteractionEdit(interaction.id)}
+                                  className="px-3 py-1.5 bg-emerald-500 text-black text-xs font-semibold rounded-lg hover:bg-emerald-400 transition-colors"
+                                >
+                                  Salvar
                                 </button>
                               </div>
                             </div>
-                            <p className="text-sm text-zinc-300 whitespace-pre-wrap">{interaction.observacao}</p>
-                          </>
-                        )}
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">{interaction.titulo}</span>
+                                  <span className="text-[10px] text-zinc-500 font-mono mt-0.5">{interaction.data}</span>
+                                </div>
+                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button 
+                                    onClick={() => {
+                                      setEditingInteractionId(interaction.id);
+                                      setEditingInteractionData({
+                                        data: interaction.data,
+                                        observacao: interaction.observacao
+                                      });
+                                    }}
+                                    className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors"
+                                    title="Editar"
+                                  >
+                                    <MoreHorizontal size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                                {interaction.observacao}
+                              </p>
+                            </>
+                          )}
+                        </div>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-zinc-500 italic">Nenhuma interação registrada ainda.</p>
+                    <div className="text-center py-8 pl-8">
+                      <p className="text-zinc-500 text-sm italic">Nenhum histórico de contato registrado.</p>
+                      <button 
+                        onClick={handleOpenNewInteraction}
+                        className="mt-2 text-emerald-500 text-xs font-bold hover:underline"
+                      >
+                        Registrar primeiro contato
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1140,14 +1306,17 @@ export default function CRM({ customers, setCustomers }: CRMProps) {
                     />
                   </div>
                   <div>
-                    <p className="text-xs text-zinc-500 mb-1">Pacote</p>
-                    <input 
-                      type="text"
+                    <p className="text-xs text-zinc-500 mb-1">Pacote / Plano</p>
+                    <select 
                       value={selectedCustomer.pacote || ''}
                       onChange={(e) => setSelectedCustomer({...selectedCustomer, pacote: e.target.value})}
-                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                      placeholder="Ex: Trimestral"
-                    />
+                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none transition-all appearance-none"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="Plano Mensal">Plano Mensal</option>
+                      <option value="Plano Trimestral">Plano Trimestral</option>
+                      <option value="Plano Semestral">Plano Semestral</option>
+                    </select>
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500 mb-1">Valor</p>

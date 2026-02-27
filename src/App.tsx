@@ -1,23 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import CRM, { initialCustomers } from './components/CRM';
-import Funnel from './components/Funnel';
-import Agenda from './components/Agenda';
+import Funnel, { initialDeals } from './components/Funnel';
+import Agenda, { initialTasks } from './components/Agenda';
+import FinancialDashboard from './components/FinancialDashboard';
+import PatientManagement from './components/PatientManagement';
+import ClientDashboard from './components/ClientDashboard';
 import { Bell, Search, User } from 'lucide-react';
-import { Customer } from './types';
+import { Customer, Deal, Task, Patient } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [deals, setDeals] = useState<Deal[]>(initialDeals);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [patients, setPatients] = useState<Patient[]>(() => {
+    const saved = localStorage.getItem('patients');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('patients', JSON.stringify(patients));
+  }, [patients]);
 
   const renderAdminContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
-      case 'crm': return <CRM customers={customers} setCustomers={setCustomers} />;
-      case 'funnel': return <Funnel customers={customers} />;
-      case 'agenda': return <Agenda />;
-      default: return <Dashboard />;
+      case 'dashboard': return <Dashboard customers={customers} />;
+      case 'crm': return <CRM customers={customers} setCustomers={setCustomers} deals={deals} setDeals={setDeals} tasks={tasks} setTasks={setTasks} />;
+      case 'patients': return <PatientManagement patients={patients} setPatients={setPatients} />;
+      case 'client_dashboard': return <ClientDashboard patients={patients} customers={customers} setCustomers={setCustomers} />;
+      case 'funnel': return <Funnel customers={customers} deals={deals} setDeals={setDeals} setPatients={setPatients} />;
+      case 'finance': return <FinancialDashboard deals={deals} customers={customers} patients={patients} />;
+      case 'agenda': return <Agenda tasks={tasks} setTasks={setTasks} patients={patients} setPatients={setPatients} />;
+      default: return <Dashboard customers={customers} />;
     }
   };
 

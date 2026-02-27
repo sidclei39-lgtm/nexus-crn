@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { GoogleGenAI } from '@google/genai';
+import React, { useState } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -8,23 +9,74 @@ import {
   Circle,
   MapPin,
   User,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Mic,
+  Trash2
 } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Task } from '../types';
 
-const initialTasks: Task[] = [
+export const initialTasks: Task[] = [
   { id: '1', title: 'Reunião de Alinhamento', description: 'Discutir proposta do ERP', date: new Date().toISOString(), completed: false, customerId: '1' },
   { id: '2', title: 'Enviar Contrato', description: 'Contrato da consultoria Cloud', date: addDays(new Date(), 1).toISOString(), completed: true, customerId: '2' },
   { id: '3', title: 'Call de Vendas', description: 'Primeiro contato App Mobile', date: addDays(new Date(), 2).toISOString(), completed: false, customerId: '3' },
   { id: '4', title: 'Follow-up', description: 'Verificar status da proposta', date: addDays(new Date(), -1).toISOString(), completed: false, customerId: '4' },
 ];
 
-export default function Agenda() {
+interface AgendaProps {
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  patients: Patient[];
+  setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
+}
+
+export default function Agenda({ tasks, setTasks, patients, setPatients }: AgendaProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [isRecording, setIsRecording] = useState(false);
+  const [extractedData, setExtractedData] = useState<any>(null);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [isAddingManualEvent, setIsAddingManualEvent] = useState(false);
+  const [manualEvent, setManualEvent] = useState({
+    patientName: '',
+    time: '09:00',
+    eventType: 'Consulta'
+  });
+
+  const handleGoogleConnect = async () => {
+    try {
+      const response = await fetch('/api/google/auth-url');
+      const { url } = await response.json();
+      const authWindow = window.open(
+        url,
+        'oauth_popup',
+        'width=600,height=700'
+      );
+
+      if (!authWindow) {
+        alert('Por favor, permita popups para conectar sua conta.');
+      }
+    } catch (error) {
+      console.error('Error getting Google auth URL:', error);
+    }
+  };
+
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+        return;
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        setIsGoogleConnected(true);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -40,6 +92,145 @@ export default function Agenda() {
 
   const toggleTask = (id: string) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
+  const deleteTask = (id: string) => {
+    setTasks(tasks.filter(t => t.id !== id));
+  };
+
+
+
+  const handleMicClick = async () => {
+    if (isRecording) {
+      mediaRecorder?.stop();
+      setIsRecording(false);
+    } else {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      setMediaRecorder(recorder);
+      recorder.start();
+
+      const audioChunks: Blob[] = [];
+      recorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        setAudioBlob(audioBlob);
+
+        // Convert audio to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(',')[1];
+
+          try {
+            const response = await fetch('/api/gemini/extract-event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ audio: base64Audio }),
+            });
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || 'Failed to process audio');
+            }
+            const data = await response.json();
+            setExtractedData(data);
+          } catch (error) {
+            console.error('Error processing audio:', error);
+          }
+        };
+      };
+
+      setIsRecording(true);
+    }
+  };
+
+  const handleConfirmEvent = async () => {
+    if (!extractedData) return;
+
+    const { patientName, date, time, eventType } = extractedData;
+    const startDateTime = new Date(`${date}T${time}`).toISOString();
+    // Assuming the event is 1 hour long
+    const endDateTime = new Date(new Date(`${date}T${time}`).getTime() + 60 * 60 * 1000).toISOString();
+
+    try {
+      await fetch('/api/google/create-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: `${eventType} - ${patientName}`,
+          description: 'Evento criado via comando de voz pelo CRM Sidclei Nutri.',
+          start: startDateTime,
+          end: endDateTime,
+        }),
+      });
+
+      // Add the new task to the local state
+      const newTask: Task = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: `${eventType} - ${patientName}`,
+        description: `Evento criado via comando de voz`,
+        date: startDateTime,
+        completed: false,
+      };
+      setTasks([...tasks, newTask]);
+
+      // Update patient's next contact date
+      const patient = patients.find(p => p.name.toLowerCase() === patientName.toLowerCase());
+      if (patient) {
+        const updatedPatient = { ...patient, proxContato: date };
+        setPatients(patients.map(p => p.id === patient.id ? updatedPatient : p));
+      }
+
+      setExtractedData(null);
+    } catch (error) {
+      console.error('Error creating Google Calendar event:', error);
+    }
+  };
+
+  const handleManualEventSubmit = async () => {
+    if (!manualEvent.patientName) return;
+
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    const startDateTime = new Date(`${dateStr}T${manualEvent.time}`).toISOString();
+    const endDateTime = new Date(new Date(`${dateStr}T${manualEvent.time}`).getTime() + 60 * 60 * 1000).toISOString();
+
+    try {
+      if (isGoogleConnected) {
+        await fetch('/api/google/create-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            summary: `${manualEvent.eventType} - ${manualEvent.patientName}`,
+            description: 'Evento criado manualmente pelo CRM Sidclei Nutri.',
+            start: startDateTime,
+            end: endDateTime,
+          }),
+        });
+      }
+
+      const newTask: Task = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: `${manualEvent.eventType} - ${manualEvent.patientName}`,
+        description: `Evento criado manualmente`,
+        date: startDateTime,
+        completed: false,
+      };
+      setTasks([...tasks, newTask]);
+
+      const patient = patients.find(p => p.name.toLowerCase() === manualEvent.patientName.toLowerCase());
+      if (patient) {
+        const updatedPatient = { ...patient, proxContato: dateStr };
+        setPatients(patients.map(p => p.id === patient.id ? updatedPatient : p));
+      }
+
+      setIsAddingManualEvent(false);
+      setManualEvent({ patientName: '', time: '09:00', eventType: 'Consulta' });
+    } catch (error) {
+      console.error('Error creating manual event:', error);
+    }
   };
 
   return (
@@ -106,13 +297,35 @@ export default function Agenda() {
       </div>
 
       <div className="space-y-6">
+        {isGoogleConnected ? (
+          <button 
+            disabled
+            className="w-full bg-emerald-600/20 text-emerald-500 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-default border border-emerald-500/50">
+            <CheckCircle2 size={20} />
+            Google Calendar Conectado
+          </button>
+        ) : (
+          <button 
+            onClick={handleGoogleConnect}
+            className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-500 transition-colors flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H9a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/><path d="M12 18h.01"/></svg>
+            Conectar Google Calendar
+          </button>
+        )}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 h-fit">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-white">
               {isSameDay(selectedDate, new Date()) ? 'Hoje' : format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
             </h3>
-            <button className="p-2 bg-emerald-500 text-black rounded-lg hover:bg-emerald-400 transition-colors">
+            <button 
+              onClick={() => setIsAddingManualEvent(true)}
+              className="p-2 bg-emerald-500 text-black rounded-lg hover:bg-emerald-400 transition-colors">
               <Plus size={18} />
+            </button>
+            <button 
+              onClick={handleMicClick}
+              className={`p-2 rounded-lg transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'}`}>
+              <Mic size={18} />
             </button>
           </div>
 
@@ -127,9 +340,17 @@ export default function Agenda() {
                       {task.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
                     </button>
                     <div className="flex-1">
-                      <h4 className={`font-semibold text-white ${task.completed ? 'line-through text-zinc-500' : ''}`}>
-                        {task.title}
-                      </h4>
+                      <div className="flex justify-between items-start">
+                        <h4 className={`font-semibold text-white ${task.completed ? 'line-through text-zinc-500' : ''}`}>
+                          {task.title}
+                        </h4>
+                        <button 
+                          onClick={() => deleteTask(task.id)}
+                          className="text-zinc-500 hover:text-red-500 transition-colors p-1"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                       <p className="text-sm text-zinc-400 mt-1">{task.description}</p>
                       
                       <div className="mt-3 flex flex-wrap gap-3">
@@ -140,7 +361,7 @@ export default function Agenda() {
                         {task.customerId && (
                           <div className="flex items-center gap-1.5 text-xs text-emerald-500/70">
                             <User size={14} />
-                            Cliente #{task.customerId}
+                            Lead #{task.customerId}
                           </div>
                         )}
                       </div>
@@ -154,6 +375,11 @@ export default function Agenda() {
                   <CalendarIcon size={24} />
                 </div>
                 <p className="text-zinc-500 text-sm">Nenhum compromisso para este dia.</p>
+                <button 
+                  onClick={handleGoogleConnect}
+                  className="bg-zinc-800/50 border border-zinc-700 text-zinc-300 font-bold py-2 px-4 rounded-xl flex items-center gap-2 hover:bg-zinc-700 transition-colors">
+                  Conectar Google Calendar
+                </button>
               </div>
             )}
           </div>
@@ -175,6 +401,90 @@ export default function Agenda() {
               ))}
             </div>
           </div>
+
+          {isAddingManualEvent && (
+            <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-6 mt-6 animate-in fade-in duration-300">
+              <h4 className="text-lg font-bold text-white mb-4">Novo Evento</h4>
+              <div className="space-y-4 text-sm">
+                <div>
+                  <label className="block text-zinc-400 mb-1">Paciente / Título</label>
+                  <input 
+                    type="text" 
+                    value={manualEvent.patientName}
+                    onChange={(e) => setManualEvent({...manualEvent, patientName: e.target.value})}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                    placeholder="Nome do paciente"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Data</label>
+                    <input 
+                      type="date" 
+                      value={format(selectedDate, 'yyyy-MM-dd')}
+                      onChange={(e) => setSelectedDate(new Date(e.target.value + 'T12:00:00'))}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-400 mb-1">Hora</label>
+                    <input 
+                      type="time" 
+                      value={manualEvent.time}
+                      onChange={(e) => setManualEvent({...manualEvent, time: e.target.value})}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-zinc-400 mb-1">Tipo de Evento</label>
+                  <input 
+                    type="text" 
+                    value={manualEvent.eventType}
+                    onChange={(e) => setManualEvent({...manualEvent, eventType: e.target.value})}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-white focus:outline-none focus:border-emerald-500"
+                    placeholder="Ex: Consulta, Retorno"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4 mt-6">
+                <button 
+                  onClick={() => setIsAddingManualEvent(false)}
+                  className="flex-1 bg-zinc-700 text-zinc-300 font-bold py-2 px-4 rounded-xl hover:bg-zinc-600 transition-colors">
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleManualEventSubmit}
+                  className="flex-1 bg-emerald-500 text-black font-bold py-2 px-4 rounded-xl hover:bg-emerald-400 transition-colors">
+                  Salvar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {extractedData && (
+            <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-6 mt-6 animate-in fade-in duration-300">
+              <h4 className="text-lg font-bold text-white mb-4">Confirmar Evento</h4>
+              <div className="space-y-2 text-sm">
+                <p><strong className="text-zinc-400">Paciente:</strong> {extractedData.patientName}</p>
+                <p><strong className="text-zinc-400">Data:</strong> {extractedData.date}</p>
+                <p><strong className="text-zinc-400">Hora:</strong> {extractedData.time}</p>
+                <p><strong className="text-zinc-400">Tipo:</strong> {extractedData.eventType}</p>
+              </div>
+              <div className="flex gap-4 mt-6">
+                <button 
+                  onClick={() => setExtractedData(null)}
+                  className="flex-1 bg-zinc-700 text-zinc-300 font-bold py-2 px-4 rounded-xl hover:bg-zinc-600 transition-colors">
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleConfirmEvent}
+                  className="flex-1 bg-emerald-500 text-black font-bold py-2 px-4 rounded-xl hover:bg-emerald-400 transition-colors">
+                  Salvar na Agenda
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

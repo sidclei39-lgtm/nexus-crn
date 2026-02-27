@@ -14,40 +14,75 @@ import { Customer, Deal, Task, Patient } from './types';
 
 export default function App() {
   const [userRole, setUserRole] = useState<'admin' | 'client' | null>(null);
+  const [loggedInAdminEmail, setLoggedInAdminEmail] = useState<string | null>(null);
+  const [loggedInAdminName, setLoggedInAdminName] = useState<string>('Admin');
   const [loggedInPatientId, setLoggedInPatientId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('customers');
-    return saved ? JSON.parse(saved) : initialCustomers;
-  });
-  const [deals, setDeals] = useState<Deal[]>(() => {
-    const saved = localStorage.getItem('deals');
-    return saved ? JSON.parse(saved) : initialDeals;
-  });
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : initialTasks;
-  });
-  const [patients, setPatients] = useState<Patient[]>(() => {
-    const saved = localStorage.getItem('patients');
-    return saved ? JSON.parse(saved) : [];
-  });
+  
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [deals, setDeals] = useState<Deal[]>(initialDeals);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [patients, setPatients] = useState<Patient[]>([]);
 
+  // Load data when admin logs in
   useEffect(() => {
-    localStorage.setItem('patients', JSON.stringify(patients));
-  }, [patients]);
+    if (userRole === 'admin' && loggedInAdminEmail) {
+      const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        setCustomers(parsed.customers || initialCustomers);
+        setDeals(parsed.deals || initialDeals);
+        setTasks(parsed.tasks || initialTasks);
+        setPatients(parsed.patients || []);
+      } else if (loggedInAdminEmail === 'admin@nexus.com') {
+        // Legacy data fallback for default admin
+        const legacyCustomers = localStorage.getItem('customers');
+        const legacyDeals = localStorage.getItem('deals');
+        const legacyTasks = localStorage.getItem('tasks');
+        const legacyPatients = localStorage.getItem('patients');
+        
+        setCustomers(legacyCustomers ? JSON.parse(legacyCustomers) : initialCustomers);
+        setDeals(legacyDeals ? JSON.parse(legacyDeals) : initialDeals);
+        setTasks(legacyTasks ? JSON.parse(legacyTasks) : initialTasks);
+        setPatients(legacyPatients ? JSON.parse(legacyPatients) : []);
+      } else {
+        // New admin, empty data
+        setCustomers([]);
+        setDeals([]);
+        setTasks([]);
+        setPatients([]);
+      }
+    }
+  }, [userRole, loggedInAdminEmail]);
 
+  // Load data when client logs in
   useEffect(() => {
-    localStorage.setItem('customers', JSON.stringify(customers));
-  }, [customers]);
+    if (userRole === 'client' && loggedInAdminEmail) {
+      if (loggedInAdminEmail === 'legacy') {
+        const legacyPatients = localStorage.getItem('patients');
+        setPatients(legacyPatients ? JSON.parse(legacyPatients) : []);
+      } else {
+        const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          setPatients(parsed.patients || []);
+        }
+      }
+    }
+  }, [userRole, loggedInAdminEmail]);
 
+  // Save data when it changes
   useEffect(() => {
-    localStorage.setItem('deals', JSON.stringify(deals));
-  }, [deals]);
-
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (userRole === 'admin' && loggedInAdminEmail) {
+      const dataToSave = {
+        customers,
+        deals,
+        tasks,
+        patients
+      };
+      localStorage.setItem(`nexus_data_${loggedInAdminEmail}`, JSON.stringify(dataToSave));
+    }
+  }, [customers, deals, tasks, patients, userRole, loggedInAdminEmail]);
 
   const renderAdminContent = () => {
     switch (activeTab) {
@@ -65,8 +100,16 @@ export default function App() {
   if (!userRole) {
     return (
       <Login 
-        onLoginAdmin={() => setUserRole('admin')} 
-        onLoginClient={(id) => { setUserRole('client'); setLoggedInPatientId(id); }} 
+        onLoginAdmin={(email, name) => { 
+          setUserRole('admin'); 
+          setLoggedInAdminEmail(email);
+          setLoggedInAdminName(name);
+        }} 
+        onLoginClient={(id, adminEmail) => { 
+          setUserRole('client'); 
+          setLoggedInPatientId(id); 
+          setLoggedInAdminEmail(adminEmail);
+        }} 
         patients={patients} 
       />
     );
@@ -77,14 +120,21 @@ export default function App() {
       <ClientPortal 
         patientId={loggedInPatientId} 
         patients={patients} 
-        onLogout={() => { setUserRole(null); setLoggedInPatientId(null); }} 
+        onLogout={() => { 
+          setUserRole(null); 
+          setLoggedInPatientId(null); 
+          setLoggedInAdminEmail(null);
+        }} 
       />
     );
   }
 
   return (
     <div className="flex h-screen bg-black text-zinc-200 font-sans selection:bg-emerald-500/30">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => setUserRole(null)} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => {
+        setUserRole(null);
+        setLoggedInAdminEmail(null);
+      }} />
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
@@ -106,7 +156,7 @@ export default function App() {
             <div className="h-8 w-px bg-zinc-800 mx-2"></div>
             <div className="flex items-center gap-3 pl-2">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold text-white leading-none">Admin User</p>
+                <p className="text-sm font-bold text-white leading-none">{loggedInAdminName}</p>
                 <p className="text-xs text-zinc-500 mt-1">Plano Enterprise</p>
               </div>
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-black shadow-lg shadow-emerald-500/10">
@@ -114,7 +164,10 @@ export default function App() {
               </div>
             </div>
             <button 
-              onClick={() => setUserRole(null)}
+              onClick={() => {
+                setUserRole(null);
+                setLoggedInAdminEmail(null);
+              }}
               className="p-2 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
               title="Sair"
             >

@@ -137,8 +137,35 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     return 0;
   });
 
+  const calculateDiasProximoContato = (proxContato: string | undefined): number => {
+    if (!proxContato) return 0;
+    
+    // Parse the date string (assuming YYYY-MM-DD format from input type="date")
+    // or DD/MM/YYYY format from initial data
+    let targetDate: Date;
+    
+    if (proxContato.includes('/')) {
+      const [day, month, year] = proxContato.split('/');
+      targetDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    } else {
+      targetDate = new Date(proxContato);
+      // Adjust for timezone offset to ensure we compare local dates correctly
+      targetDate.setMinutes(targetDate.getMinutes() + targetDate.getTimezoneOffset());
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays;
+  };
+
   const handleAddCustomer = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const calculatedDias = calculateDiasProximoContato(newCustomer.proxContato);
     
     if (editingCustomerId) {
       const updatedCustomer: Customer = {
@@ -159,7 +186,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
         contatado: newCustomer.contatado || 'Não',
         pacote: newCustomer.pacote || '',
         valor: newCustomer.valor || '',
-        diasProximoContato: newCustomer.diasProximoContato || 0,
+        diasProximoContato: calculatedDias,
         conversao: newCustomer.conversao || '',
         observacoes: newCustomer.observacoes || '',
       };
@@ -217,7 +244,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
         contatado: newCustomer.contatado || 'Não',
         pacote: newCustomer.pacote || '',
         valor: newCustomer.valor || '',
-        diasProximoContato: newCustomer.diasProximoContato || 0,
+        diasProximoContato: calculatedDias,
         conversao: newCustomer.conversao || '',
         observacoes: newCustomer.observacoes || '',
         interactions: [],
@@ -819,9 +846,10 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                     <label className="text-sm font-medium text-zinc-400">Dias Próx.</label>
                     <input 
                       type="number"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                      value={newCustomer.diasProximoContato}
-                      onChange={(e) => setNewCustomer({ ...newCustomer, diasProximoContato: parseInt(e.target.value) || 0 })}
+                      className={`w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 outline-none transition-all ${calculateDiasProximoContato(newCustomer.proxContato) < 0 ? 'text-red-500 font-bold' : 'text-white'}`}
+                      value={calculateDiasProximoContato(newCustomer.proxContato)}
+                      readOnly
+                      disabled
                     />
                   </div>
                 </div>

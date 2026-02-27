@@ -3,8 +3,8 @@ import { Patient } from '../types';
 import { Lock, User, ShieldAlert } from 'lucide-react';
 
 interface LoginProps {
-  onLoginAdmin: () => void;
-  onLoginClient: (patientId: string) => void;
+  onLoginAdmin: (email: string, name: string) => void;
+  onLoginClient: (patientId: string, adminEmail: string) => void;
   patients: Patient[];
 }
 
@@ -26,7 +26,7 @@ export default function Login({ onLoginAdmin, onLoginClient, patients }: LoginPr
     const admin = admins.find((a: any) => a.email === email && a.password === password);
 
     if (admin) {
-      onLoginAdmin();
+      onLoginAdmin(admin.email, admin.name || 'Admin');
     } else {
       setError('Credenciais inválidas. Verifique seu e-mail e senha.');
     }
@@ -61,11 +61,37 @@ export default function Login({ onLoginAdmin, onLoginClient, patients }: LoginPr
 
   const handleClientLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock client login - find patient by email or name (using name for now since email might not be in Patient type)
-    const patient = patients.find(p => p.name.toLowerCase() === email.toLowerCase() || p.email?.toLowerCase() === email.toLowerCase());
     
-    if (patient && password === 'cliente123') {
-      onLoginClient(patient.id);
+    let foundPatient = null;
+    let foundAdminEmail = null;
+    
+    // Search through all admin data
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('nexus_data_')) {
+        const data = JSON.parse(localStorage.getItem(key) || '{}');
+        const patientsList = data.patients || [];
+        const patient = patientsList.find((p: any) => p.name.toLowerCase() === email.toLowerCase() || p.email?.toLowerCase() === email.toLowerCase());
+        if (patient) {
+          foundPatient = patient;
+          foundAdminEmail = key.replace('nexus_data_', '');
+          break;
+        }
+      }
+    }
+    
+    // Also check the legacy 'patients' key for backward compatibility
+    if (!foundPatient) {
+      const legacyPatients = JSON.parse(localStorage.getItem('patients') || '[]');
+      const patient = legacyPatients.find((p: any) => p.name.toLowerCase() === email.toLowerCase() || p.email?.toLowerCase() === email.toLowerCase());
+      if (patient) {
+        foundPatient = patient;
+        foundAdminEmail = 'legacy';
+      }
+    }
+
+    if (foundPatient && password === 'cliente123') {
+      onLoginClient(foundPatient.id, foundAdminEmail || '');
     } else {
       setError('Credenciais inválidas. Use o nome do paciente e senha "cliente123"');
     }

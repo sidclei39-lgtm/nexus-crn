@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import CRM, { initialCustomers } from './components/CRM';
 import Funnel, { initialDeals } from './components/Funnel';
 import Agenda, { initialTasks } from './components/Agenda';
+import ImageEditor from './components/ImageEditor';
 import FinancialDashboard from './components/FinancialDashboard';
 import PatientManagement from './components/PatientManagement';
 import ClientDashboard from './components/ClientDashboard';
@@ -93,6 +94,7 @@ export default function App() {
       case 'funnel': return <Funnel customers={customers} deals={deals} setDeals={setDeals} setPatients={setPatients} />;
       case 'finance': return <FinancialDashboard deals={deals} customers={customers} patients={patients} />;
       case 'agenda': return <Agenda tasks={tasks} setTasks={setTasks} patients={patients} setPatients={setPatients} />;
+      case 'image_editor': return <ImageEditor />;
       default: return <Dashboard customers={customers} />;
     }
   };

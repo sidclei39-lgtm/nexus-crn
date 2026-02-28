@@ -7,7 +7,8 @@ import {
   LogOut,
   ChevronRight,
   DollarSign,
-  HeartPulse
+  HeartPulse,
+  Image as ImageIcon
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,6 +32,7 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout }: SidebarPr
     { id: 'funnel', label: 'Funil de Vendas', icon: Trello },
     { id: 'finance', label: 'Financeiro', icon: DollarSign },
     { id: 'agenda', label: 'Agenda', icon: Calendar },
+    { id: 'image_editor', label: 'Editor de Imagens', icon: ImageIcon },
   ];
 
   return (

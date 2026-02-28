@@ -146,4 +146,6 @@ export type Patient = {
   value: number;
   paymentMethod: 'pix' | 'card';
   installments: number;
+  notes?: string;
+  interactions?: Interaction[];
 };

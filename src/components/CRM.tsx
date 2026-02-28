@@ -110,8 +110,13 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
       (c.status && c.status.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const contactCount = c.historico_contatos?.length || 0;
-    const matchesContact = filterContact === 'all' || 
-      (filterContact === '5+' ? contactCount >= 5 : contactCount.toString() === filterContact);
+    
+    let matchesContact = true;
+    if (filterContact === 'agenda_cadencia') {
+      matchesContact = !!c.proxContato && (c.status === 'Lead' || c.status === 'Follow up');
+    } else if (filterContact !== 'all') {
+      matchesContact = filterContact === '5+' ? contactCount >= 5 : contactCount.toString() === filterContact;
+    }
 
     return matchesSearch && matchesContact;
   });
@@ -137,8 +142,8 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     return 0;
   });
 
-  const calculateDiasProximoContato = (proxContato: string | undefined): number => {
-    if (!proxContato) return 0;
+  const calculateDiasProximoContato = (proxContato: string | undefined): number | undefined => {
+    if (!proxContato) return undefined;
     
     // Parse the date string (assuming YYYY-MM-DD format from input type="date")
     // or DD/MM/YYYY format from initial data
@@ -161,6 +166,39 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     
     return diffDays;
   };
+
+  const calculateProxContatoFromCadencia = (dataContato: string, cadencia: string): string => {
+    if (!cadencia) return '';
+    const days = parseInt(cadencia);
+    if (isNaN(days)) return '';
+    
+    let baseDate = new Date();
+    if (dataContato) {
+      const parts = dataContato.split('/');
+      if (parts.length === 3) {
+        baseDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      }
+    }
+    baseDate.setDate(baseDate.getDate() + days);
+    return baseDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  // Recalculate diasProximoContato for all customers on mount to ensure it's always up-to-date with the current date
+  React.useEffect(() => {
+    let hasChanges = false;
+    const updatedCustomers = customers.map(customer => {
+      const calculatedDias = calculateDiasProximoContato(customer.proxContato);
+      if (customer.diasProximoContato !== calculatedDias) {
+        hasChanges = true;
+        return { ...customer, diasProximoContato: calculatedDias };
+      }
+      return customer;
+    });
+
+    if (hasChanges) {
+      setCustomers(updatedCustomers);
+    }
+  }, []); // Run once on mount
 
   const handleAddCustomer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -331,22 +369,17 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     // Calcula diasProximoContato
     let diasProximoContato = selectedCustomer.diasProximoContato;
     if (newInteractionData.proxContato) {
-      const parts = newInteractionData.proxContato.split('/');
-      if (parts.length === 3) {
-        const proxDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const diffTime = proxDate.getTime() - today.getTime();
-        diasProximoContato = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      }
+      diasProximoContato = calculateDiasProximoContato(newInteractionData.proxContato);
+    } else {
+      diasProximoContato = undefined;
     }
 
     const updatedCustomer = {
       ...selectedCustomer,
       ultimoContato: newInteractionData.dataContato || selectedCustomer.ultimoContato,
-      cadenciaDias: parseInt(newInteractionData.cadencia) || selectedCustomer.cadenciaDias,
+      cadenciaDias: newInteractionData.cadencia ? parseInt(newInteractionData.cadencia) : selectedCustomer.cadenciaDias,
       contatado: newInteractionData.contatado || selectedCustomer.contatado,
-      proxContato: newInteractionData.proxContato || selectedCustomer.proxContato,
+      proxContato: newInteractionData.proxContato, // Limpa o próximo contato se não for informado
       diasProximoContato: diasProximoContato,
       historico_contatos: [interaction, ...historico] // Adiciona no início para ordem decrescente
     };
@@ -472,6 +505,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
               className="bg-zinc-800 border-none rounded-xl px-4 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none cursor-pointer"
             >
               <option value="all">Todos os Contatos</option>
+              <option value="agenda_cadencia">Agenda de Cadência</option>
               <option value="0">Sem Contato</option>
               <option value="1">Contato 1</option>
               <option value="2">Contato 2</option>
@@ -514,7 +548,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {sortedCustomers.map((customer) => {
-                const isUrgent = customer.diasProximoContato !== undefined && customer.diasProximoContato <= 0 && (customer.status === 'Lead' || customer.status === 'Follow up');
+                const isUrgent = customer.diasProximoContato !== undefined && customer.diasProximoContato < 0 && (customer.status === 'Lead' || customer.status === 'Follow up');
                 
                 return (
                 <tr 
@@ -565,9 +599,9 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                       </div>
                       <div className="flex flex-col gap-1">
                         <div className="text-xs text-zinc-500">
-                          Dias: <span className={customer.diasProximoContato !== undefined && customer.diasProximoContato <= 0 ? 'text-red-400 font-bold' : 'text-emerald-400'}>{customer.diasProximoContato ?? '-'}</span>
+                          Dias: <span className={customer.diasProximoContato !== undefined && customer.diasProximoContato < 0 ? 'text-red-400 font-bold' : 'text-emerald-400'}>{customer.diasProximoContato ?? '-'}</span>
                         </div>
-                        {customer.diasProximoContato !== undefined && customer.diasProximoContato <= 0 && (customer.status === 'Lead' || customer.status === 'Follow up') && (
+                        {customer.diasProximoContato !== undefined && customer.diasProximoContato < 0 && (customer.status === 'Lead' || customer.status === 'Follow up') && (
                           <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20 w-fit">
                             ATRASADO {Math.abs(customer.diasProximoContato)} DIAS
                           </span>
@@ -1016,7 +1050,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                       <option value="active" className="bg-zinc-900 text-white">Ativo</option>
                       <option value="inactive" className="bg-zinc-900 text-white">Inativo</option>
                     </select>
-                    {selectedCustomer.diasProximoContato !== undefined && selectedCustomer.diasProximoContato <= 0 && (
+                    {selectedCustomer.diasProximoContato !== undefined && selectedCustomer.diasProximoContato < 0 && (
                       <span className="text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
                         ATRASADO {Math.abs(selectedCustomer.diasProximoContato)} DIAS
                       </span>
@@ -1146,7 +1180,14 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                         <input 
                           type="text"
                           value={selectedCustomer.proxContato || ''}
-                          onChange={(e) => setSelectedCustomer({...selectedCustomer, proxContato: e.target.value})}
+                          onChange={(e) => {
+                            const newProxContato = e.target.value;
+                            setSelectedCustomer({
+                              ...selectedCustomer, 
+                              proxContato: newProxContato,
+                              diasProximoContato: calculateDiasProximoContato(newProxContato)
+                            });
+                          }}
                           className="w-full max-w-[150px] bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-emerald-500 px-1 py-0.5 text-base text-white font-bold outline-none transition-colors"
                           placeholder="DD/MM/AAAA"
                         />
@@ -1156,13 +1197,15 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                       <p className="text-xs text-zinc-500 mb-1.5">Status do Atraso</p>
                       {selectedCustomer.diasProximoContato !== undefined ? (
                         <span className={`text-sm font-semibold px-3 py-1.5 rounded-md ${
-                          selectedCustomer.diasProximoContato <= 0 
+                          selectedCustomer.diasProximoContato < 0 
                             ? 'bg-red-950/60 text-red-400' 
                             : 'bg-emerald-950/60 text-emerald-400'
                         }`}>
-                          {selectedCustomer.diasProximoContato <= 0 
+                          {selectedCustomer.diasProximoContato < 0 
                             ? `Atrasado em ${Math.abs(selectedCustomer.diasProximoContato)} dias` 
-                            : `Faltam ${selectedCustomer.diasProximoContato} dias`}
+                            : selectedCustomer.diasProximoContato === 0 
+                              ? 'Contato Hoje'
+                              : `Faltam ${selectedCustomer.diasProximoContato} dias`}
                         </span>
                       ) : (
                         <span className="text-sm text-zinc-500">-</span>
@@ -1191,7 +1234,14 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                           <input 
                             type="text"
                             value={newInteractionData.dataContato}
-                            onChange={(e) => setNewInteractionData({...newInteractionData, dataContato: e.target.value})}
+                            onChange={(e) => {
+                              const dataContatoVal = e.target.value;
+                              const newData = {...newInteractionData, dataContato: dataContatoVal};
+                              if (newData.cadencia) {
+                                newData.proxContato = calculateProxContatoFromCadencia(dataContatoVal, newData.cadencia);
+                              }
+                              setNewInteractionData(newData);
+                            }}
                             className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
                             placeholder="DD/MM/AAAA"
                           />
@@ -1202,7 +1252,14 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                         <input 
                           type="number"
                           value={newInteractionData.cadencia}
-                          onChange={(e) => setNewInteractionData({...newInteractionData, cadencia: e.target.value})}
+                          onChange={(e) => {
+                            const cadenciaVal = e.target.value;
+                            const newData = {...newInteractionData, cadencia: cadenciaVal};
+                            if (cadenciaVal) {
+                              newData.proxContato = calculateProxContatoFromCadencia(newData.dataContato, cadenciaVal);
+                            }
+                            setNewInteractionData(newData);
+                          }}
                           className="w-full bg-zinc-900/80 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
                           placeholder="Ex: 3"
                         />
@@ -1456,7 +1513,11 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                 </button>
                 <button 
                   onClick={() => {
-                    setCustomers(customers.map(c => c.id === selectedCustomer.id ? selectedCustomer : c));
+                    const updatedCustomer = {
+                      ...selectedCustomer,
+                      diasProximoContato: calculateDiasProximoContato(selectedCustomer.proxContato)
+                    };
+                    setCustomers(customers.map(c => c.id === selectedCustomer.id ? updatedCustomer : c));
                     setSelectedCustomer(null);
                     setShowDeleteConfirm(false);
                   }}

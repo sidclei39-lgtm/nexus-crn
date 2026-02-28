@@ -21,6 +21,11 @@ async function createServer() {
     res.json({ url: getGoogleAuthUrl() });
   });
 
+  app.get('/api/google/status', (req, res) => {
+    const isConnected = !!(oauth2Client.credentials && oauth2Client.credentials.access_token);
+    res.json({ connected: isConnected });
+  });
+
   app.get('/api/google/callback', async (req, res) => {
     const { code, error } = req.query;
     
@@ -66,6 +71,10 @@ async function createServer() {
   app.post('/api/google/create-event', async (req, res) => {
     const { summary, description, start, end } = req.body;
     try {
+      if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
+        return res.status(401).json({ error: 'Google Calendar not connected. Please connect your account first.' });
+      }
+
       const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
       const event = await calendar.events.insert({
         calendarId: 'primary',
@@ -77,9 +86,9 @@ async function createServer() {
         },
       });
       res.json(event.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating Google Calendar event:', error);
-      res.status(500).send('Failed to create event');
+      res.status(500).json({ error: error.message || 'Failed to create event' });
     }
   });
 
@@ -95,7 +104,7 @@ async function createServer() {
     }
 
     try {
-      const ai = new GoogleGenAI();
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `A partir do áudio, extraia as seguintes informações para um evento de calendário: nome do paciente, data, hora e tipo de evento. Formate a resposta como JSON com as chaves: "patientName", "date", "time", "eventType". Exemplo de áudio: "Marcar retorno do paciente João para o dia 10 de março às 14 horas". Exemplo de saída: {"patientName": "João", "date": "2024-03-10", "time": "14:00", "eventType": "Retorno"}.`;
       
       const response = await ai.models.generateContent({
@@ -132,7 +141,7 @@ async function createServer() {
     }
 
     try {
-      const ai = new GoogleGenAI();
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `Você é um assistente avançado de CRM e gestão de vendas. Sua função é gerenciar um "Dashboard de Contatos" e um "Funil de Vendas" em tempo real.
       
       Mensagem do usuário: "${message}"

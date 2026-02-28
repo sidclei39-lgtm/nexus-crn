@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import React, { useState } from 'react';
 import { 
   ChevronLeft, 
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Task } from '../types';
+import { Task, Patient } from '../types';
 
 export const initialTasks: Task[] = [
   { id: '1', title: 'Reunião de Alinhamento', description: 'Discutir proposta do ERP', date: new Date().toISOString(), completed: false, customerId: '1' },
@@ -63,6 +63,19 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
   };
 
   React.useEffect(() => {
+    const checkGoogleStatus = async () => {
+      try {
+        const response = await fetch('/api/google/status');
+        if (response.ok) {
+          const data = await response.json();
+          setIsGoogleConnected(data.connected);
+        }
+      } catch (error) {
+        console.error('Failed to check Google Calendar status:', error);
+      }
+    };
+    checkGoogleStatus();
+
     const handleMessage = (event: MessageEvent) => {
       const origin = event.origin;
       if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
@@ -77,6 +90,8 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
   }, []);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+  const [transcription, setTranscription] = useState<string | null>(null);
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -126,19 +141,55 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
           const base64Audio = (reader.result as string).split(',')[1];
 
           try {
-            const response = await fetch('/api/gemini/extract-event', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ audio: base64Audio }),
+            setIsProcessingAudio(true);
+            const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY });
+            
+            const response = await ai.models.generateContent({
+              model: "gemini-3-flash-preview",
+              contents: {
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: "audio/webm",
+                      data: base64Audio
+                    }
+                  },
+                  {
+                    text: "Transcreva o áudio e extraia as informações de agendamento. Retorne um JSON com a chave 'transcription' contendo o texto falado, e as chaves 'patientName' (Nome), 'date' (Data YYYY-MM-DD, use o ano atual se não dito), 'time' (Hora HH:MM), e 'eventType' (Tipo de Evento)."
+                  }
+                ]
+              },
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.OBJECT,
+                  properties: {
+                    transcription: { type: Type.STRING, description: "A transcrição exata do áudio" },
+                    patientName: { type: Type.STRING },
+                    date: { type: Type.STRING },
+                    time: { type: Type.STRING },
+                    eventType: { type: Type.STRING }
+                  },
+                  required: ["transcription", "patientName", "date", "time", "eventType"]
+                }
+              }
             });
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error || 'Failed to process audio');
+
+            if (response.text) {
+              const data = JSON.parse(response.text);
+              setTranscription(data.transcription);
+              setExtractedData({
+                patientName: data.patientName,
+                date: data.date,
+                time: data.time,
+                eventType: data.eventType
+              });
             }
-            const data = await response.json();
-            setExtractedData(data);
           } catch (error) {
             console.error('Error processing audio:', error);
+            alert('Erro ao processar o áudio. Tente novamente.');
+          } finally {
+            setIsProcessingAudio(false);
           }
         };
       };
@@ -156,16 +207,24 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
     const endDateTime = new Date(new Date(`${date}T${time}`).getTime() + 60 * 60 * 1000).toISOString();
 
     try {
-      await fetch('/api/google/create-event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: `${eventType} - ${patientName}`,
-          description: 'Evento criado via comando de voz pelo CRM Sidclei Nutri.',
-          start: startDateTime,
-          end: endDateTime,
-        }),
-      });
+      if (isGoogleConnected) {
+        const response = await fetch('/api/google/create-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            summary: `${eventType} - ${patientName}`,
+            description: 'Evento criado via comando de voz pelo CRM Sidclei Nutri.',
+            start: startDateTime,
+            end: endDateTime,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to create Google Calendar event:', errorData);
+          alert(`Aviso: O evento foi salvo localmente, mas não no Google Calendar. Erro: ${errorData.error || 'Desconhecido'}`);
+        }
+      }
 
       // Add the new task to the local state
       const newTask: Task = {
@@ -185,8 +244,10 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
       }
 
       setExtractedData(null);
+      setTranscription(null);
     } catch (error) {
       console.error('Error creating Google Calendar event:', error);
+      alert('Erro ao criar evento. Tente novamente.');
     }
   };
 
@@ -199,7 +260,7 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
 
     try {
       if (isGoogleConnected) {
-        await fetch('/api/google/create-event', {
+        const response = await fetch('/api/google/create-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -209,6 +270,12 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
             end: endDateTime,
           }),
         });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to create Google Calendar event:', errorData);
+          alert(`Aviso: O evento foi salvo localmente, mas não no Google Calendar. Erro: ${errorData.error || 'Desconhecido'}`);
+        }
       }
 
       const newTask: Task = {
@@ -324,7 +391,8 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
             </button>
             <button 
               onClick={handleMicClick}
-              className={`p-2 rounded-lg transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'}`}>
+              disabled={isProcessingAudio}
+              className={`p-2 rounded-lg transition-all ${isRecording ? 'bg-red-500 text-white animate-pulse' : isProcessingAudio ? 'bg-emerald-500/50 text-white cursor-not-allowed' : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'}`}>
               <Mic size={18} />
             </button>
           </div>
@@ -465,6 +533,12 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
           {extractedData && (
             <div className="bg-zinc-800/50 border border-zinc-700 rounded-2xl p-6 mt-6 animate-in fade-in duration-300">
               <h4 className="text-lg font-bold text-white mb-4">Confirmar Evento</h4>
+              {transcription && (
+                <div className="mb-4 p-3 bg-zinc-900/50 rounded-lg border border-zinc-700/50">
+                  <p className="text-xs text-zinc-500 font-bold uppercase mb-1">Transcrição do Áudio:</p>
+                  <p className="text-sm text-zinc-300 italic">"{transcription}"</p>
+                </div>
+              )}
               <div className="space-y-2 text-sm">
                 <p><strong className="text-zinc-400">Paciente:</strong> {extractedData.patientName}</p>
                 <p><strong className="text-zinc-400">Data:</strong> {extractedData.date}</p>
@@ -473,7 +547,10 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
               </div>
               <div className="flex gap-4 mt-6">
                 <button 
-                  onClick={() => setExtractedData(null)}
+                  onClick={() => {
+                    setExtractedData(null);
+                    setTranscription(null);
+                  }}
                   className="flex-1 bg-zinc-700 text-zinc-300 font-bold py-2 px-4 rounded-xl hover:bg-zinc-600 transition-colors">
                   Cancelar
                 </button>

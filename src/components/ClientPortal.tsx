@@ -218,12 +218,12 @@ export default function ClientPortal({ patientId, patients, onLogout }: ClientPo
                     </div>
                     <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-zinc-950 p-4 rounded-2xl border border-zinc-800 shadow-sm">
                       <div className="flex items-center justify-between mb-1">
-                        <div className="font-bold text-white">{interaction.title}</div>
+                        <div className="font-bold text-white">{interaction.titulo}</div>
                         <time className="text-xs font-medium text-emerald-500">
-                          {format(parseISO(interaction.date), "dd/MM/yyyy")}
+                          {format(parseISO(interaction.data), "dd/MM/yyyy")}
                         </time>
                       </div>
-                      <div className="text-sm text-zinc-400">{interaction.notes}</div>
+                      <div className="text-sm text-zinc-400">{interaction.observacao}</div>
                     </div>
                   </div>
                 ))}

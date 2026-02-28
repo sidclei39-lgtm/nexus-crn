@@ -26,7 +26,7 @@ import {
   Cell
 } from 'recharts';
 import { Deal, Customer, Patient } from '../types';
-import { parse, format, isThisMonth, subMonths, isSameMonth, startOfMonth, endOfMonth, isWithinInterval, addMonths, parseISO } from 'date-fns';
+import { parse, format, isThisMonth, subMonths, isSameMonth, startOfMonth, endOfMonth, isWithinInterval, addMonths, parseISO, isSameDay, subDays, startOfDay, isSameYear, subYears, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface FinancialDashboardProps {
@@ -53,6 +53,7 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
     return saved ? Number(saved) : 0;
   });
   const [isEditingCosts, setIsEditingCosts] = useState(false);
+  const [chartGranularity, setChartGranularity] = useState<'day' | 'month' | 'year'>('month');
 
   const handleSaveFixedCosts = () => {
     localStorage.setItem('fixedCosts', fixedCosts.toString());
@@ -60,7 +61,7 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
   };
 
   const CARD_TAX_RATE = 0.0349; // 3.49%
-  const PIX_PARCELADO_TAX_RATE = 0.0349; // 3.49% conforme solicitado para parcelado
+  const PIX_PARCELADO_TAX_RATE = 0; // 0% conforme solicitado
   const PIX_VISTA_TAX_RATE = 0; // Pix à vista continua 0%
 
   const closedDeals = useMemo(() => deals.filter(d => d.stage === 'closed' && d.paymentConfirmed), [deals]);
@@ -169,53 +170,129 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
 
     const growth = lastMonthLiquidRevenue === 0 ? 100 : ((currentMonthLiquidRevenue - lastMonthLiquidRevenue) / lastMonthLiquidRevenue) * 100;
 
-    // Dados para o gráfico de barras (próximos 6 meses para fluxo de caixa futuro)
-    const chartData = Array.from({ length: 6 }).map((_, i) => {
-      const date = addMonths(startOfMonth(now), i);
-      const monthLabel = format(date, 'MMM', { locale: ptBR });
-      
-      const liquidRevenue = cashFlow
-        .filter(entry => isSameMonth(entry.date, date))
-        .reduce((acc, entry) => acc + entry.value, 0);
+    // Dados para o gráfico baseados na granularidade selecionada
+    let chartData = [];
+    const today = startOfDay(new Date());
 
-      // Faturamento Bruto (sem descontar taxas)
-      const dealsGrossRevenue = closedDeals.reduce((acc, deal) => {
-        const closeDate = parse(deal.expectedCloseDate, 'yyyy-MM-dd', new Date());
-        const installments = deal.installments || 1;
-        const installmentValue = deal.value / installments;
+    if (chartGranularity === 'day') {
+      // Últimos 30 dias
+      chartData = Array.from({ length: 30 }).map((_, i) => {
+        const date = addDays(subDays(today, 29), i);
+        const label = format(date, 'dd/MM');
         
-        let monthTotal = 0;
-        for (let j = 0; j < installments; j++) {
-          if (isSameMonth(addMonths(closeDate, j), date)) {
-            monthTotal += installmentValue;
-          }
-        }
-        return acc + monthTotal;
-      }, 0);
+        const liquidRevenue = cashFlow
+          .filter(entry => isSameDay(entry.date, date))
+          .reduce((acc, entry) => acc + entry.value, 0);
 
-      const patientsGrossRevenue = patients.reduce((acc, patient) => {
-        const startDate = parseISO(patient.startDate);
-        const installments = patient.installments;
-        const installmentValue = patient.value / installments;
+        const grossRevenue = closedDeals.reduce((acc, deal) => {
+          const closeDate = parse(deal.expectedCloseDate, 'yyyy-MM-dd', new Date());
+          const installments = deal.installments || 1;
+          const installmentValue = deal.value / installments;
+          for (let j = 0; j < installments; j++) {
+            if (isSameDay(addMonths(closeDate, j), date)) return acc + installmentValue;
+          }
+          return acc;
+        }, 0) + patients.reduce((acc, patient) => {
+          const startDate = parseISO(patient.startDate);
+          const installments = patient.installments;
+          const installmentValue = patient.value / installments;
+          for (let j = 0; j < installments; j++) {
+            if (isSameDay(addMonths(startDate, j), date)) return acc + installmentValue;
+          }
+          return acc;
+        }, 0);
+
+        return { 
+          name: label, 
+          grossRevenue,
+          liquidRevenue,
+          netProfit: liquidRevenue - (fixedCosts / 30) // Custo fixo proporcional diário
+        };
+      });
+    } else if (chartGranularity === 'year') {
+      // Últimos 5 anos
+      chartData = Array.from({ length: 5 }).map((_, i) => {
+        const date = subYears(today, 4 - i);
+        const label = format(date, 'yyyy');
         
-        let monthTotal = 0;
-        for (let j = 0; j < installments; j++) {
-          if (isSameMonth(addMonths(startDate, j), date)) {
-            monthTotal += installmentValue;
-          }
-        }
-        return acc + monthTotal;
-      }, 0);
+        const liquidRevenue = cashFlow
+          .filter(entry => isSameYear(entry.date, date))
+          .reduce((acc, entry) => acc + entry.value, 0);
 
-      const grossRevenue = dealsGrossRevenue + patientsGrossRevenue;
-      
-      return { 
-        name: monthLabel, 
-        grossRevenue,
-        liquidRevenue,
-        netProfit: liquidRevenue - fixedCosts
-      };
-    });
+        const grossRevenue = closedDeals.reduce((acc, deal) => {
+          const closeDate = parse(deal.expectedCloseDate, 'yyyy-MM-dd', new Date());
+          const installments = deal.installments || 1;
+          const installmentValue = deal.value / installments;
+          for (let j = 0; j < installments; j++) {
+            if (isSameYear(addMonths(closeDate, j), date)) return acc + installmentValue;
+          }
+          return acc;
+        }, 0) + patients.reduce((acc, patient) => {
+          const startDate = parseISO(patient.startDate);
+          const installments = patient.installments;
+          const installmentValue = patient.value / installments;
+          for (let j = 0; j < installments; j++) {
+            if (isSameYear(addMonths(startDate, j), date)) return acc + installmentValue;
+          }
+          return acc;
+        }, 0);
+
+        return { 
+          name: label, 
+          grossRevenue,
+          liquidRevenue,
+          netProfit: liquidRevenue - (fixedCosts * 12) // Custo fixo anual
+        };
+      });
+    } else {
+      // Mensal - Próximos 6 meses (comportamento original expandido para 12 meses para melhor visão)
+      chartData = Array.from({ length: 12 }).map((_, i) => {
+        const date = addMonths(startOfMonth(now), i - 3); // 3 meses atrás até 9 meses à frente
+        const monthLabel = format(date, 'MMM', { locale: ptBR });
+        
+        const liquidRevenue = cashFlow
+          .filter(entry => isSameMonth(entry.date, date))
+          .reduce((acc, entry) => acc + entry.value, 0);
+
+        // Faturamento Bruto (sem descontar taxas)
+        const dealsGrossRevenue = closedDeals.reduce((acc, deal) => {
+          const closeDate = parse(deal.expectedCloseDate, 'yyyy-MM-dd', new Date());
+          const installments = deal.installments || 1;
+          const installmentValue = deal.value / installments;
+          
+          let monthTotal = 0;
+          for (let j = 0; j < installments; j++) {
+            if (isSameMonth(addMonths(closeDate, j), date)) {
+              monthTotal += installmentValue;
+            }
+          }
+          return acc + monthTotal;
+        }, 0);
+
+        const patientsGrossRevenue = patients.reduce((acc, patient) => {
+          const startDate = parseISO(patient.startDate);
+          const installments = patient.installments;
+          const installmentValue = patient.value / installments;
+          
+          let monthTotal = 0;
+          for (let j = 0; j < installments; j++) {
+            if (isSameMonth(addMonths(startDate, j), date)) {
+              monthTotal += installmentValue;
+            }
+          }
+          return acc + monthTotal;
+        }, 0);
+
+        const grossRevenue = dealsGrossRevenue + patientsGrossRevenue;
+        
+        return { 
+          name: monthLabel, 
+          grossRevenue,
+          liquidRevenue,
+          netProfit: liquidRevenue - fixedCosts
+        };
+      });
+    }
 
     const totalLeads = customers.filter(c => c.status === 'Lead').length;
     const totalContacts = customers.reduce((acc, c) => acc + (c.historico_contatos?.length || 0), 0);
@@ -230,7 +307,7 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
       totalLeads,
       totalContacts
     };
-  }, [filteredCashFlow, cashFlow, fixedCosts, closedDeals, customers]);
+  }, [filteredCashFlow, cashFlow, fixedCosts, closedDeals, customers, chartGranularity, patients]);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -319,18 +396,20 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Fluxo de Caixa (Líquido)</h2>
-          <p className="text-zinc-400">Valores reais após taxas Asaas, parcelamentos e custos fixos.</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-zinc-400 text-sm">Valores reais após taxas e custos fixos.</p>
+            {(startDate || endDate) && (
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border border-emerald-500/20">
+                {startDate === endDate 
+                  ? format(parse(startDate, 'yyyy-MM-dd', new Date()), "EEEE, dd 'de' MMMM", { locale: ptBR })
+                  : 'Período Personalizado'
+                }
+              </span>
+            )}
+          </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          <button 
-            onClick={() => setIsEditingCosts(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border border-zinc-800 hover:border-red-500/50 text-zinc-400 hover:text-red-400 rounded-xl transition-all text-xs font-bold uppercase"
-          >
-            <ArrowDownRight size={14} />
-            Custos: {formatCurrency(fixedCosts)}
-          </button>
-
           <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 p-1 rounded-xl">
             <button 
               onClick={() => setQuickFilter('day')}
@@ -352,29 +431,33 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
             </button>
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-2 rounded-xl">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase ml-1">De</span>
+          <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-800 p-1.5 rounded-xl shadow-inner">
+            <div className="flex items-center gap-2 px-2 py-1 bg-zinc-950/50 rounded-lg border border-zinc-800">
+              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">DE</span>
               <input 
                 type="date" 
-                className="bg-zinc-800 border-none text-xs text-white rounded-lg px-2 py-1 focus:ring-1 focus:ring-emerald-500 outline-none"
+                className="bg-transparent border-none text-xs text-white font-bold outline-none cursor-pointer [color-scheme:dark]"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
+              <Calendar size={12} className="text-zinc-600" />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase">Até</span>
+            
+            <div className="flex items-center gap-2 px-2 py-1 bg-zinc-950/50 rounded-lg border border-zinc-800">
+              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">ATÉ</span>
               <input 
                 type="date" 
-                className="bg-zinc-800 border-none text-xs text-white rounded-lg px-2 py-1 focus:ring-1 focus:ring-emerald-500 outline-none"
+                className="bg-transparent border-none text-xs text-white font-bold outline-none cursor-pointer [color-scheme:dark]"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
+              <Calendar size={12} className="text-zinc-600" />
             </div>
+
             {(startDate || endDate) && (
               <button 
                 onClick={clearFilters}
-                className="p-1 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-white transition-all"
+                className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-red-400 transition-all border border-transparent hover:border-zinc-700"
                 title="Limpar Filtros"
               >
                 <X size={14} />
@@ -444,7 +527,21 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
                 <BarChart3 size={20} className="text-blue-500" />
                 Fluxo de Recebimento (Bruto)
               </h3>
-              <span className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Próximos 6 meses</span>
+              <div className="flex items-center gap-1 bg-zinc-800/50 p-1 rounded-lg border border-zinc-700">
+                {(['day', 'month', 'year'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setChartGranularity(mode)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all uppercase ${
+                      chartGranularity === mode 
+                        ? 'bg-emerald-500 text-black' 
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+                    }`}
+                  >
+                    {mode === 'day' ? 'Dia' : mode === 'month' ? 'Mês' : 'Ano'}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -470,7 +567,21 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
                 <TrendingUp size={20} className="text-emerald-500" />
                 Análise de Lucro Líquido
               </h3>
-              <span className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Real vs Previsto</span>
+              <div className="flex items-center gap-1 bg-zinc-800/50 p-1 rounded-lg border border-zinc-700">
+                {(['day', 'month', 'year'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setChartGranularity(mode)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all uppercase ${
+                      chartGranularity === mode 
+                        ? 'bg-emerald-500 text-black' 
+                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
+                    }`}
+                  >
+                    {mode === 'day' ? 'Dia' : mode === 'month' ? 'Mês' : 'Ano'}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -524,7 +635,9 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
                         {entry.type === 'pix_vista' ? 'PIX À VISTA' : entry.type === 'pix_parcelado' ? `PIX ${entry.installment}/${entry.totalInstallments}` : `Cartão ${entry.installment}/${entry.totalInstallments}`}
                       </span>
                     </div>
-                    <span className="text-xs text-zinc-500">{format(entry.date, 'dd/MM/yy')}</span>
+                    <span className="text-xs text-zinc-500 font-medium">
+                      {format(entry.date, "EEE, dd/MM", { locale: ptBR })}
+                    </span>
                   </div>
                   <h4 className="text-sm font-semibold text-white truncate">{entry.dealTitle}</h4>
                   <p className="text-xs text-zinc-400 mt-1">{entry.customerName}</p>
@@ -536,7 +649,7 @@ export default function FinancialDashboard({ deals, customers, patients = [] }: 
                     <div className="flex justify-between items-center bg-zinc-900/50 p-1.5 rounded-lg">
                       <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">Lucro Real Aprox.</span>
                       <span className="text-xs font-bold text-emerald-500">
-                        {formatCurrency(entry.value - (entry.value * (entry.type === 'pix_vista' ? 0 : 0.0349)))}
+                        {formatCurrency(entry.value - (entry.value * (entry.type === 'card' ? 0.0349 : 0)))}
                       </span>
                     </div>
                   </div>

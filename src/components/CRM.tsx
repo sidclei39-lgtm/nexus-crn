@@ -16,7 +16,8 @@ import {
   AlertCircle,
   Trash2,
   Mic,
-  Loader2
+  Loader2,
+  Check
 } from 'lucide-react';
 import { Customer, CustomerStatus, Interaction, Deal, DealStage, Task } from '../types';
 import { initialDeals } from './Funnel';
@@ -459,6 +460,28 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     setCustomers(customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
     setSelectedCustomer(updatedCustomer);
     setEditingInteractionId(null);
+  };
+
+  const handleToggleInteractionComplete = (interactionId: string) => {
+    if (!selectedCustomer) return;
+
+    const updatedHistorico = selectedCustomer.historico_contatos?.map(interaction => {
+      if (interaction.id === interactionId) {
+        return {
+          ...interaction,
+          completed: !interaction.completed
+        };
+      }
+      return interaction;
+    });
+
+    const updatedCustomer = {
+      ...selectedCustomer,
+      historico_contatos: updatedHistorico
+    };
+
+    setCustomers(customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
+    setSelectedCustomer(updatedCustomer);
   };
 
   const handleInteractionMicClick = async () => {
@@ -1646,14 +1669,16 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                   <div className="absolute left-[23px] top-4 bottom-4 w-0.5 bg-zinc-800/50" />
 
                   {selectedCustomer.historico_contatos && selectedCustomer.historico_contatos.length > 0 ? (
-                    selectedCustomer.historico_contatos.map((interaction) => (
-                      <div key={interaction.id} className="relative pl-10 group">
+                    [...(selectedCustomer.historico_contatos || [])]
+                      .sort((a, b) => (a.completed === b.completed ? 0 : a.completed ? 1 : -1))
+                      .map((interaction) => (
+                      <div key={interaction.id} className={`relative pl-10 group transition-all duration-300 ${interaction.completed ? 'opacity-60' : ''}`}>
                         {/* Ícone da timeline */}
                         <div className="absolute left-0 top-0 w-12 h-12 flex items-center justify-center">
-                          <div className="w-3 h-3 rounded-full bg-zinc-900 border-2 border-emerald-500 z-10 relative shadow-[0_0_10px_rgba(16,185,129,0.3)]"></div>
+                          <div className={`w-3 h-3 rounded-full bg-zinc-900 border-2 z-10 relative shadow-[0_0_10px_rgba(16,185,129,0.3)] ${interaction.completed ? 'border-zinc-500' : 'border-emerald-500'}`}></div>
                         </div>
 
-                        <div className="bg-zinc-900/30 rounded-xl border border-zinc-800/50 p-4 hover:border-emerald-500/30 transition-all group-hover:bg-zinc-900/50">
+                        <div className={`bg-zinc-900/30 rounded-xl border p-4 transition-all group-hover:bg-zinc-900/50 ${interaction.completed ? 'border-zinc-800/50 grayscale-[0.5]' : 'border-zinc-800/50 hover:border-emerald-500/30'}`}>
                           {editingInteractionId === interaction.id ? (
                             <div className="space-y-3">
                               <div className="flex justify-between items-center">
@@ -1691,10 +1716,17 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                             <>
                               <div className="flex justify-between items-start mb-2">
                                 <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">{interaction.titulo}</span>
+                                  <span className={`text-xs font-bold uppercase tracking-wider ${interaction.completed ? 'text-zinc-500 line-through' : 'text-emerald-500'}`}>{interaction.titulo}</span>
                                   <span className="text-[10px] text-zinc-500 font-mono mt-0.5">{interaction.data}</span>
                                 </div>
                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button 
+                                    onClick={() => handleToggleInteractionComplete(interaction.id)}
+                                    className={`p-1.5 rounded-lg transition-colors ${interaction.completed ? 'bg-emerald-500/20 text-emerald-500' : 'hover:bg-zinc-800 text-zinc-400 hover:text-emerald-500'}`}
+                                    title={interaction.completed ? "Desmarcar como concluída" : "Marcar como concluída"}
+                                  >
+                                    <Check size={14} />
+                                  </button>
                                   <button 
                                     onClick={() => {
                                       setEditingInteractionId(interaction.id);
@@ -1710,7 +1742,7 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                              <p className={`text-sm leading-relaxed whitespace-pre-wrap ${interaction.completed ? 'text-zinc-500 line-through' : 'text-zinc-300'}`}>
                                 {interaction.observacao}
                               </p>
                             </>

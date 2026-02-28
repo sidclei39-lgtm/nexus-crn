@@ -6,6 +6,7 @@ export type Interaction = {
   data: string;
   observacao: string;
   tipo_contato?: string; // e.g., "Contato 1", "Contato 2"
+  completed?: boolean;
 };
 
 export type Customer = {

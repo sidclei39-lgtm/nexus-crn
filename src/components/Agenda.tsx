@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Task, Patient } from '../types';
+import { Task, Patient, Customer } from '../types';
 
 export const initialTasks: Task[] = [
   { id: '1', title: 'Reunião de Alinhamento', description: 'Discutir proposta do ERP', date: new Date().toISOString(), completed: false, customerId: '1' },
@@ -29,9 +29,11 @@ interface AgendaProps {
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   patients: Patient[];
   setPatients: React.Dispatch<React.SetStateAction<Patient[]>>;
+  customers: Customer[];
+  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
 }
 
-export default function Agenda({ tasks, setTasks, patients, setPatients }: AgendaProps) {
+export default function Agenda({ tasks, setTasks, patients, setPatients, customers, setCustomers }: AgendaProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isRecording, setIsRecording] = useState(false);
@@ -142,7 +144,7 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
 
           try {
             setIsProcessingAudio(true);
-            const ai = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY });
+            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
             
             const response = await ai.models.generateContent({
               model: "gemini-3-flash-preview",
@@ -155,7 +157,7 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
                     }
                   },
                   {
-                    text: "Transcreva o áudio e extraia as informações de agendamento. Retorne um JSON com a chave 'transcription' contendo o texto falado, e as chaves 'patientName' (Nome), 'date' (Data YYYY-MM-DD, use o ano atual se não dito), 'time' (Hora HH:MM), e 'eventType' (Tipo de Evento)."
+                    text: `A partir do áudio, extraia as seguintes informações para um evento de calendário ou registro de contato: nome do paciente/lead, data, hora, tipo de evento, e se foi mencionada uma cadência de dias (ex: "cadência de 3 dias"), extraia o número de dias. Se o usuário informar que o retorno foi feito, defina "isReturnMade" como true. Formate a resposta como JSON com as chaves: "transcription" (transcrição exata), "patientName", "date" (YYYY-MM-DD), "time" (HH:MM), "eventType", "cadenceDays" (número ou null), "isReturnMade" (boolean).`
                   }
                 ]
               },
@@ -168,9 +170,11 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
                     patientName: { type: Type.STRING },
                     date: { type: Type.STRING },
                     time: { type: Type.STRING },
-                    eventType: { type: Type.STRING }
+                    eventType: { type: Type.STRING },
+                    cadenceDays: { type: Type.NUMBER, nullable: true },
+                    isReturnMade: { type: Type.BOOLEAN }
                   },
-                  required: ["transcription", "patientName", "date", "time", "eventType"]
+                  required: ["transcription", "patientName", "date", "time", "eventType", "isReturnMade"]
                 }
               }
             });
@@ -182,12 +186,14 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
                 patientName: data.patientName,
                 date: data.date,
                 time: data.time,
-                eventType: data.eventType
+                eventType: data.eventType,
+                cadenceDays: data.cadenceDays,
+                isReturnMade: data.isReturnMade
               });
             }
           } catch (error) {
             console.error('Error processing audio:', error);
-            alert('Erro ao processar o áudio. Tente novamente.');
+            alert('Erro ao processar o áudio. Verifique sua conexão e tente novamente.');
           } finally {
             setIsProcessingAudio(false);
           }
@@ -201,7 +207,7 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
   const handleConfirmEvent = async () => {
     if (!extractedData) return;
 
-    const { patientName, date, time, eventType } = extractedData;
+    const { patientName, date, time, eventType, cadenceDays, isReturnMade } = extractedData;
     const startDateTime = new Date(`${date}T${time}`).toISOString();
     // Assuming the event is 1 hour long
     const endDateTime = new Date(new Date(`${date}T${time}`).getTime() + 60 * 60 * 1000).toISOString();
@@ -241,6 +247,23 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
       if (patient) {
         const updatedPatient = { ...patient, proxContato: date };
         setPatients(patients.map(p => p.id === patient.id ? updatedPatient : p));
+      }
+
+      // Update customer cadence
+      const customer = customers.find(c => c.name.toLowerCase() === patientName.toLowerCase());
+      if (customer) {
+        let updatedCustomer = { ...customer };
+        if (isReturnMade) {
+          updatedCustomer.contatado = 'Sim';
+          updatedCustomer.proxContato = undefined;
+        }
+        if (cadenceDays) {
+          const baseDate = new Date(date + 'T12:00:00');
+          const nextContactDate = addDays(baseDate, cadenceDays);
+          updatedCustomer.proxContato = format(nextContactDate, 'yyyy-MM-dd');
+          updatedCustomer.cadenciaDias = cadenceDays;
+        }
+        setCustomers(customers.map(c => c.id === customer.id ? updatedCustomer : c));
       }
 
       setExtractedData(null);
@@ -359,6 +382,49 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
                 </button>
               );
             })}
+          </div>
+        </div>
+
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-white">Agenda de Cadência</h3>
+            <span className="text-sm text-zinc-400">Leads para retornar</span>
+          </div>
+          <div className="space-y-4">
+            {customers.filter(c => c.proxContato && new Date(c.proxContato) >= new Date(new Date().setHours(0,0,0,0))).length > 0 ? (
+              customers.filter(c => c.proxContato && new Date(c.proxContato) >= new Date(new Date().setHours(0,0,0,0))).map(customer => (
+                <div key={customer.id} className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4 flex items-center justify-between group hover:border-emerald-500/50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-zinc-300 font-bold">
+                      {customer.name.charAt(0)}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white">{customer.name}</h4>
+                      <p className="text-sm text-zinc-400 flex items-center gap-1">
+                        <CalendarIcon size={14} />
+                        Retornar em: <span className="text-emerald-400 font-medium">{format(new Date(customer.proxContato!), 'dd/MM/yyyy')}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const updatedCustomer = { ...customer, contatado: 'Sim', proxContato: undefined };
+                      setCustomers(customers.map(c => c.id === customer.id ? updatedCustomer : c));
+                    }}
+                    className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-black px-4 py-2 rounded-lg text-sm font-bold transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center gap-2">
+                    <CheckCircle2 size={16} />
+                    Feito
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mx-auto text-zinc-600 mb-3">
+                  <CheckCircle2 size={24} />
+                </div>
+                <p className="text-zinc-500 text-sm">Nenhum retorno agendado para o futuro.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -540,10 +606,16 @@ export default function Agenda({ tasks, setTasks, patients, setPatients }: Agend
                 </div>
               )}
               <div className="space-y-2 text-sm">
-                <p><strong className="text-zinc-400">Paciente:</strong> {extractedData.patientName}</p>
+                <p><strong className="text-zinc-400">Paciente/Lead:</strong> {extractedData.patientName}</p>
                 <p><strong className="text-zinc-400">Data:</strong> {extractedData.date}</p>
                 <p><strong className="text-zinc-400">Hora:</strong> {extractedData.time}</p>
                 <p><strong className="text-zinc-400">Tipo:</strong> {extractedData.eventType}</p>
+                {extractedData.cadenceDays && (
+                  <p><strong className="text-zinc-400">Cadência:</strong> {extractedData.cadenceDays} dias</p>
+                )}
+                {extractedData.isReturnMade && (
+                  <p><strong className="text-zinc-400">Status:</strong> Retorno Realizado</p>
+                )}
               </div>
               <div className="flex gap-4 mt-6">
                 <button 

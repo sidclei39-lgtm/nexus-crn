@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { GoogleGenAI } from '@google/genai';
 import { 
   Search, 
   Plus, 
@@ -13,7 +14,9 @@ import {
   Calendar,
   ArrowUpDown,
   AlertCircle,
-  Trash2
+  Trash2,
+  Mic,
+  Loader2
 } from 'lucide-react';
 import { Customer, CustomerStatus, Interaction, Deal, DealStage, Task } from '../types';
 
@@ -77,6 +80,14 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     data: '',
     observacao: ''
   });
+  const [isRecordingInteraction, setIsRecordingInteraction] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isSummarizingCustomerObs, setIsSummarizingCustomerObs] = useState(false);
+  const [isRecordingCustomerObs, setIsRecordingCustomerObs] = useState(false);
+  const [isSummarizingSelectedCustomerObs, setIsSummarizingSelectedCustomerObs] = useState(false);
+  const [isRecordingSelectedCustomerObs, setIsRecordingSelectedCustomerObs] = useState(false);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
   const [newCustomer, setNewCustomer] = useState<Partial<Customer> & { funnelStage?: DealStage | '', lembreteData?: string, lembreteHora?: string }>({
@@ -446,6 +457,227 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
     setCustomers(customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
     setSelectedCustomer(updatedCustomer);
     setEditingInteractionId(null);
+  };
+
+  const handleInteractionMicClick = async () => {
+    if (isRecordingInteraction) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        setIsRecordingInteraction(false);
+      }
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            const base64Audio = (reader.result as string).split(',')[1];
+            setIsSummarizing(true);
+            try {
+              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              const prompt = `A partir do áudio, faça um resumo conciso e profissional da interação com o cliente ou lead. O resumo deve destacar os pontos principais, decisões tomadas e próximos passos, se houver. Responda apenas com o texto do resumo.`;
+              
+              const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: {
+                  parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: 'audio/webm', data: base64Audio } }
+                  ]
+                }
+              });
+
+              if (response.text) {
+                const summary = response.text.trim();
+                setNewInteractionData(prev => ({
+                  ...prev,
+                  observacao: prev.observacao 
+                    ? `${prev.observacao}\n\nResumo do áudio: ${summary}`
+                    : `Resumo do áudio: ${summary}`
+                }));
+              } else {
+                console.error('Failed to summarize audio: Empty response');
+              }
+            } catch (error) {
+              console.error('Error summarizing audio:', error);
+              alert('Erro ao resumir o áudio. Verifique sua conexão e tente novamente.');
+            } finally {
+              setIsSummarizing(false);
+            }
+          };
+          
+          // Stop all tracks to release the microphone
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecordingInteraction(true);
+      } catch (error) {
+        console.error('Error accessing microphone:', error);
+        alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
+      }
+    }
+  };
+
+  const handleCustomerObsMicClick = async () => {
+    if (isRecordingCustomerObs) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        setIsRecordingCustomerObs(false);
+      }
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            const base64Audio = (reader.result as string).split(',')[1];
+            setIsSummarizingCustomerObs(true);
+            try {
+              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              const prompt = `A partir do áudio, faça um resumo conciso e profissional da interação com o cliente ou lead. O resumo deve destacar os pontos principais, decisões tomadas e próximos passos, se houver. Responda apenas com o texto do resumo.`;
+              
+              const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: {
+                  parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: 'audio/webm', data: base64Audio } }
+                  ]
+                }
+              });
+
+              if (response.text) {
+                const summary = response.text.trim();
+                setNewCustomer(prev => ({
+                  ...prev,
+                  observacoes: prev.observacoes 
+                    ? `${prev.observacoes}\n\nResumo do áudio: ${summary}`
+                    : `Resumo do áudio: ${summary}`
+                }));
+              } else {
+                console.error('Failed to summarize audio: Empty response');
+              }
+            } catch (error) {
+              console.error('Error summarizing audio:', error);
+              alert('Erro ao resumir o áudio. Verifique sua conexão e tente novamente.');
+            } finally {
+              setIsSummarizingCustomerObs(false);
+            }
+          };
+          
+          // Stop all tracks to release the microphone
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecordingCustomerObs(true);
+      } catch (error) {
+        console.error('Error accessing microphone:', error);
+        alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
+      }
+    }
+  };
+
+  const handleSelectedCustomerObsMicClick = async () => {
+    if (!selectedCustomer) return;
+    
+    if (isRecordingSelectedCustomerObs) {
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        setIsRecordingSelectedCustomerObs(false);
+      }
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = async () => {
+            const base64Audio = (reader.result as string).split(',')[1];
+            setIsSummarizingSelectedCustomerObs(true);
+            try {
+              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              const prompt = `A partir do áudio, faça um resumo conciso e profissional da interação com o cliente ou lead. O resumo deve destacar os pontos principais, decisões tomadas e próximos passos, se houver. Responda apenas com o texto do resumo.`;
+              
+              const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: {
+                  parts: [
+                    { text: prompt },
+                    { inlineData: { mimeType: 'audio/webm', data: base64Audio } }
+                  ]
+                }
+              });
+
+              if (response.text) {
+                const summary = response.text.trim();
+                setSelectedCustomer(prev => {
+                  if (!prev) return null;
+                  return {
+                    ...prev,
+                    observacoes: prev.observacoes 
+                      ? `${prev.observacoes}\n\nResumo do áudio: ${summary}`
+                      : `Resumo do áudio: ${summary}`
+                  };
+                });
+              } else {
+                console.error('Failed to summarize audio: Empty response');
+              }
+            } catch (error) {
+              console.error('Error summarizing audio:', error);
+              alert('Erro ao resumir o áudio. Verifique sua conexão e tente novamente.');
+            } finally {
+              setIsSummarizingSelectedCustomerObs(false);
+            }
+          };
+          
+          // Stop all tracks to release the microphone
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecordingSelectedCustomerObs(true);
+      } catch (error) {
+        console.error('Error accessing microphone:', error);
+        alert('Não foi possível acessar o microfone. Verifique as permissões do navegador.');
+      }
+    }
   };
 
   const handleDeleteCustomer = (id: string) => {
@@ -967,7 +1199,33 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
               {/* Observações */}
               <div className="space-y-4 pt-4 border-t border-zinc-800">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-400">Observações</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-zinc-400">Observações</label>
+                    <button 
+                      type="button"
+                      onClick={handleCustomerObsMicClick}
+                      disabled={isSummarizingCustomerObs}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                        isRecordingCustomerObs 
+                          ? 'bg-red-500 text-white animate-pulse' 
+                          : isSummarizingCustomerObs 
+                            ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                            : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                      }`}
+                    >
+                      {isSummarizingCustomerObs ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          Resumindo...
+                        </>
+                      ) : (
+                        <>
+                          <Mic size={12} />
+                          {isRecordingCustomerObs ? 'Parar Gravação' : 'Gravar e Resumir'}
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <textarea 
                     rows={3}
                     placeholder="Anotações sobre o lead..."
@@ -1290,7 +1548,32 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
                       </div>
                     </div>
 
-                    <label className="block text-xs text-zinc-400 mb-1.5">Resumo da Interação</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs text-zinc-400">Resumo da Interação</label>
+                      <button 
+                        onClick={handleInteractionMicClick}
+                        disabled={isSummarizing}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                          isRecordingInteraction 
+                            ? 'bg-red-500 text-white animate-pulse' 
+                            : isSummarizing 
+                              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                              : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                        }`}
+                      >
+                        {isSummarizing ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            Resumindo...
+                          </>
+                        ) : (
+                          <>
+                            <Mic size={12} />
+                            {isRecordingInteraction ? 'Parar Gravação' : 'Gravar e Resumir'}
+                          </>
+                        )}
+                      </button>
+                    </div>
                     <textarea 
                       rows={3}
                       placeholder="Como foi a conversa?..."
@@ -1464,7 +1747,32 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
 
               {/* Observações */}
               <div>
-                <h4 className="text-sm font-semibold text-emerald-500 uppercase tracking-wider mb-4">Observações</h4>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-semibold text-emerald-500 uppercase tracking-wider">Observações</h4>
+                  <button 
+                    onClick={handleSelectedCustomerObsMicClick}
+                    disabled={isSummarizingSelectedCustomerObs}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      isRecordingSelectedCustomerObs 
+                        ? 'bg-red-500 text-white animate-pulse' 
+                        : isSummarizingSelectedCustomerObs 
+                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                          : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+                    }`}
+                  >
+                    {isSummarizingSelectedCustomerObs ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Resumindo...
+                      </>
+                    ) : (
+                      <>
+                        <Mic size={12} />
+                        {isRecordingSelectedCustomerObs ? 'Parar Gravação' : 'Gravar e Resumir'}
+                      </>
+                    )}
+                  </button>
+                </div>
                 <textarea 
                   rows={4}
                   value={selectedCustomer.observacoes || ''}

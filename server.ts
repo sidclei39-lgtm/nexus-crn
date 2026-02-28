@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import { getGoogleAuthUrl, getGoogleCalendar } from './src/services/google';
 import { google } from 'googleapis';
 import oauth2Client from './src/services/google';
-import { GoogleGenAI } from '@google/genai';
 import bodyParser from 'body-parser';
 
 dotenv.config();
@@ -89,113 +88,6 @@ async function createServer() {
     } catch (error: any) {
       console.error('Error creating Google Calendar event:', error);
       res.status(500).json({ error: error.message || 'Failed to create event' });
-    }
-  });
-
-  app.post('/api/gemini/extract-event', async (req, res) => {
-    if (!process.env.GEMINI_API_KEY) {
-      console.error('GEMINI_API_KEY is not set on the server.');
-      return res.status(500).json({ error: 'Server configuration error: Missing Gemini API Key.' });
-    }
-
-    const { audio } = req.body;
-    if (!audio) {
-      return res.status(400).send('No audio data provided.');
-    }
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `A partir do áudio, extraia as seguintes informações para um evento de calendário: nome do paciente, data, hora e tipo de evento. Formate a resposta como JSON com as chaves: "patientName", "date", "time", "eventType". Exemplo de áudio: "Marcar retorno do paciente João para o dia 10 de março às 14 horas". Exemplo de saída: {"patientName": "João", "date": "2024-03-10", "time": "14:00", "eventType": "Retorno"}.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: {
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType: 'audio/webm', data: audio } }
-          ]
-        }
-      });
-      
-      const text = response.text || '';
-      
-      const jsonResponse = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      try {
-        const parsedJson = JSON.parse(jsonResponse);
-        res.json(parsedJson);
-      } catch (e) {
-        console.error('Failed to parse JSON from Gemini response:', jsonResponse);
-        res.status(500).json({ error: 'Failed to parse AI response.' });
-      }
-    } catch (error) {
-      console.error('Error with Gemini API on server:', error);
-      res.status(500).json({ error: 'Failed to process audio with Gemini' });
-    }
-  });
-
-  app.post('/api/gemini/chat-crm', async (req, res) => {
-    const { message, customers, deals } = req.body;
-    
-    if (!message) {
-      return res.status(400).send('No message provided.');
-    }
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `Você é um assistente avançado de CRM e gestão de vendas. Sua função é gerenciar um "Dashboard de Contatos" e um "Funil de Vendas" em tempo real.
-      
-      Mensagem do usuário: "${message}"
-      
-      Clientes Atuais: ${JSON.stringify(customers.map((c: any) => ({ id: c.id, name: c.name })))}
-      Negócios Atuais: ${JSON.stringify(deals.map((d: any) => ({ id: d.id, customerId: d.customerId, stage: d.stage })))}
-      
-      1. Etapas do Funil de Vendas:
-      - lead (Prospecção)
-      - contact (Contato)
-      - proposal (Proposta)
-      - negotiation (Negociação)
-      - closed (Fechado)
-      
-      2. Regras de Contabilização (Dashboard):
-      Apenas marque isCommunicationAction como true para ações ativas de comunicação (ex: novos leads abordados, follow-ups realizados).
-      
-      Responda em JSON com a sua resposta em texto e uma lista de ações a serem tomadas no sistema.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT' as any,
-            properties: {
-              reply: { type: 'STRING' as any, description: 'Sua resposta amigável para o usuário' },
-              actions: {
-                type: 'ARRAY' as any,
-                items: {
-                  type: 'OBJECT' as any,
-                  properties: {
-                    type: { type: 'STRING' as any, description: '"add_lead", "update_stage", "log_interaction"' },
-                    customerName: { type: 'STRING' as any },
-                    stage: { type: 'STRING' as any, description: '"lead", "contact", "proposal", "negotiation", "closed"' },
-                    notes: { type: 'STRING' as any },
-                    isCommunicationAction: { type: 'BOOLEAN' as any }
-                  },
-                  required: ['type', 'customerName']
-                }
-              }
-            },
-            required: ['reply', 'actions']
-          }
-        }
-      });
-      
-      const text = response.text || '{}';
-      const parsedJson = JSON.parse(text);
-      res.json(parsedJson);
-    } catch (error) {
-      console.error('Error with Gemini API chat:', error);
-      res.status(500).json({ error: 'Failed to process chat with Gemini' });
     }
   });
 

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { GoogleGenAI } from '@google/genai';
 import { Bot, X, Send, Loader2 } from 'lucide-react';
 import { Customer, Deal, Interaction } from '../types';
 import { format } from 'date-fns';
@@ -36,15 +37,58 @@ export default function AIAssistant({ customers, setCustomers, deals, setDeals }
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/gemini/chat-crm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, customers, deals }),
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Você é um assistente avançado de CRM e gestão de vendas. Sua função é gerenciar um "Dashboard de Contatos" e um "Funil de Vendas" em tempo real.
+      
+      Mensagem do usuário: "${userMsg}"
+      
+      Clientes Atuais: ${JSON.stringify(customers.map((c: any) => ({ id: c.id, name: c.name })))}
+      Negócios Atuais: ${JSON.stringify(deals.map((d: any) => ({ id: d.id, customerId: d.customerId, stage: d.stage })))}
+      
+      1. Etapas do Funil de Vendas:
+      - lead (Prospecção)
+      - contact (Contato)
+      - proposal (Proposta)
+      - negotiation (Negociação)
+      - closed (Fechado)
+      
+      2. Regras de Contabilização (Dashboard):
+      Apenas marque isCommunicationAction como true para ações ativas de comunicação (ex: novos leads abordados, follow-ups realizados).
+      
+      Responda em JSON com a sua resposta em texto e uma lista de ações a serem tomadas no sistema.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT' as any,
+            properties: {
+              reply: { type: 'STRING' as any, description: 'Sua resposta amigável para o usuário' },
+              actions: {
+                type: 'ARRAY' as any,
+                items: {
+                  type: 'OBJECT' as any,
+                  properties: {
+                    type: { type: 'STRING' as any, description: '"add_lead", "update_stage", "log_interaction"' },
+                    customerName: { type: 'STRING' as any },
+                    stage: { type: 'STRING' as any, description: '"lead", "contact", "proposal", "negotiation", "closed"' },
+                    notes: { type: 'STRING' as any },
+                    isCommunicationAction: { type: 'BOOLEAN' as any }
+                  },
+                  required: ['type', 'customerName']
+                }
+              }
+            },
+            required: ['reply', 'actions']
+          }
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to get AI response');
+      if (!response.text) throw new Error('Failed to get AI response');
 
-      const data = await response.json();
+      const data = JSON.parse(response.text);
       
       setMessages(prev => [...prev, { role: 'ai', text: data.reply }]);
 

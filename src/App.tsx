@@ -18,6 +18,7 @@ export default function App() {
   const [loggedInAdminName, setLoggedInAdminName] = useState<string>('Admin');
   const [loggedInPatientId, setLoggedInPatientId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
   
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
@@ -124,15 +125,29 @@ export default function App() {
                 })
               });
             } else {
-              // New admin, empty data
-              setCustomers([]);
-              setDeals([]);
-              setTasks([]);
+              // New admin, use initial data
+              setCustomers(initialCustomers);
+              setDeals(initialDeals);
+              setTasks(initialTasks);
               setPatients([]);
+              
+              // Save initial data to server for this new admin
+              fetch(`/api/data/${loggedInAdminEmail}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  customers: initialCustomers,
+                  deals: initialDeals,
+                  tasks: initialTasks,
+                  patients: []
+                })
+              });
             }
           }
+          setIsInitialLoadDone(true);
         } catch (error) {
           console.error('Error loading data from server:', error);
+          setIsInitialLoadDone(true);
         }
       }
     };
@@ -172,7 +187,7 @@ export default function App() {
   // Save data when it changes
   useEffect(() => {
     const saveData = async () => {
-      if (userRole === 'admin' && loggedInAdminEmail) {
+      if (userRole === 'admin' && loggedInAdminEmail && isInitialLoadDone) {
         const dataToSave = {
           customers,
           deals,
@@ -205,6 +220,15 @@ export default function App() {
   }, [customers, deals, tasks, patients, userRole, loggedInAdminEmail]);
 
   const renderAdminContent = () => {
+    if (!isInitialLoadDone && userRole === 'admin') {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-zinc-400 animate-pulse">Carregando seus dados com segurança...</p>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'dashboard': return <Dashboard customers={customers} />;
       case 'crm': return <CRM customers={customers} setCustomers={setCustomers} deals={deals} setDeals={setDeals} tasks={tasks} setTasks={setTasks} />;
@@ -244,6 +268,7 @@ export default function App() {
           setUserRole(null); 
           setLoggedInPatientId(null); 
           setLoggedInAdminEmail(null);
+          setIsInitialLoadDone(false);
         }} 
       />
     );
@@ -254,6 +279,7 @@ export default function App() {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => {
         setUserRole(null);
         setLoggedInAdminEmail(null);
+        setIsInitialLoadDone(false);
       }} />
       
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -287,6 +313,7 @@ export default function App() {
               onClick={() => {
                 setUserRole(null);
                 setLoggedInAdminEmail(null);
+                setIsInitialLoadDone(false);
               }}
               className="p-2 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
               title="Sair"

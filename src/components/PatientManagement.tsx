@@ -34,6 +34,8 @@ export default function PatientManagement({ patients, setPatients }: PatientMana
   const [value, setValue] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'card'>('pix');
   const [timeFilter, setTimeFilter] = useState<'day' | 'month' | 'year'>('month');
+  const [planMode, setPlanMode] = useState<'predefined' | 'custom'>('predefined');
+  const [customDays, setCustomDays] = useState('30');
 
   // Update status based on dates
   useEffect(() => {
@@ -54,18 +56,24 @@ export default function PatientManagement({ patients, setPatients }: PatientMana
     }
   }, [patients, setPatients]);
 
-  const calculateEndDate = (start: string, planType: PlanType) => {
+  const calculateEndDate = (start: string, planType: PlanType, mode: 'predefined' | 'custom', custom: string) => {
     const date = parseISO(start);
     let daysToAdd = 30;
-    if (planType === 'trimestral') daysToAdd = 90;
-    if (planType === 'semestral') daysToAdd = 180;
+    
+    if (mode === 'custom') {
+      daysToAdd = parseInt(custom) || 0;
+    } else {
+      if (planType === 'trimestral') daysToAdd = 90;
+      if (planType === 'semestral') daysToAdd = 180;
+    }
+    
     return format(addDays(date, daysToAdd), 'yyyy-MM-dd');
   };
 
   const handleSave = (e: FormEvent) => {
     e.preventDefault();
     
-    const endDate = calculateEndDate(startDate, plan);
+    const endDate = calculateEndDate(startDate, plan, planMode, customDays);
     const installments = plan === 'mensal' ? 1 : (plan === 'trimestral' ? 3 : 6);
     
     const newPatient: Patient = {
@@ -96,6 +104,16 @@ export default function PatientManagement({ patients, setPatients }: PatientMana
     setStartDate(patient.startDate);
     setValue(patient.value.toString());
     setPaymentMethod(patient.paymentMethod);
+    
+    // Check if it's a custom plan
+    const days = differenceInDays(parseISO(patient.endDate), parseISO(patient.startDate));
+    if (days !== 30 && days !== 90 && days !== 180) {
+      setPlanMode('custom');
+      setCustomDays(days.toString());
+    } else {
+      setPlanMode('predefined');
+    }
+    
     setIsModalOpen(true);
   };
 
@@ -118,6 +136,8 @@ export default function PatientManagement({ patients, setPatients }: PatientMana
     setStartDate(format(new Date(), 'yyyy-MM-dd'));
     setValue('');
     setPaymentMethod('pix');
+    setPlanMode('predefined');
+    setCustomDays('30');
   };
 
   const chartData = useMemo(() => {
@@ -339,18 +359,56 @@ export default function PatientManagement({ patients, setPatients }: PatientMana
                 />
               </div>
 
+              <div className="flex gap-2 p-1 bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
+                <button
+                  type="button"
+                  onClick={() => setPlanMode('predefined')}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                    planMode === 'predefined' ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  Planos Padrão
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlanMode('custom')}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                    planMode === 'custom' ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  Dias Personalizados
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Plano</label>
-                  <select 
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-white focus:ring-1 focus:ring-emerald-500 outline-none appearance-none"
-                    value={plan}
-                    onChange={e => setPlan(e.target.value as PlanType)}
-                  >
-                    <option value="mensal">Mensal (30 dias)</option>
-                    <option value="trimestral">Trimestral (90 dias)</option>
-                    <option value="semestral">Semestral (180 dias)</option>
-                  </select>
+                  {planMode === 'predefined' ? (
+                    <>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Plano</label>
+                      <select 
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-white focus:ring-1 focus:ring-emerald-500 outline-none appearance-none"
+                        value={plan}
+                        onChange={e => setPlan(e.target.value as PlanType)}
+                      >
+                        <option value="mensal">Mensal (30 dias)</option>
+                        <option value="trimestral">Trimestral (90 dias)</option>
+                        <option value="semestral">Semestral (180 dias)</option>
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Quantidade de Dias</label>
+                      <input 
+                        required
+                        type="number" 
+                        min="1"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                        value={customDays}
+                        onChange={e => setCustomDays(e.target.value)}
+                        placeholder="Ex: 45"
+                      />
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Data de Início</label>

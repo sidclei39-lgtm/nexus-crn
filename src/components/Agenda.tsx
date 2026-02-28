@@ -144,7 +144,11 @@ export default function Agenda({ tasks, setTasks, patients, setPatients, custome
 
           try {
             setIsProcessingAudio(true);
-            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+            const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+              throw new Error('Chave de API do Gemini não configurada.');
+            }
+            const ai = new GoogleGenAI({ apiKey });
             
             const response = await ai.models.generateContent({
               model: "gemini-3-flash-preview",

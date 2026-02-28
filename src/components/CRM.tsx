@@ -486,7 +486,11 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
             const base64Audio = (reader.result as string).split(',')[1];
             setIsSummarizing(true);
             try {
-              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+              if (!apiKey) {
+                throw new Error('Chave de API do Gemini não configurada.');
+              }
+              const ai = new GoogleGenAI({ apiKey });
               const prompt = `A partir do áudio, faça um resumo conciso e profissional da interação com o cliente ou lead. O resumo deve destacar os pontos principais, decisões tomadas e próximos passos, se houver. Responda apenas com o texto do resumo.`;
               
               const response = await ai.models.generateContent({
@@ -558,7 +562,11 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
             const base64Audio = (reader.result as string).split(',')[1];
             setIsSummarizingCustomerObs(true);
             try {
-              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+              if (!apiKey) {
+                throw new Error('Chave de API do Gemini não configurada.');
+              }
+              const ai = new GoogleGenAI({ apiKey });
               const prompt = `A partir do áudio, faça um resumo conciso e profissional da interação com o cliente ou lead. O resumo deve destacar os pontos principais, decisões tomadas e próximos passos, se houver. Responda apenas com o texto do resumo.`;
               
               const response = await ai.models.generateContent({
@@ -632,7 +640,11 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
             const base64Audio = (reader.result as string).split(',')[1];
             setIsSummarizingSelectedCustomerObs(true);
             try {
-              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+              if (!apiKey) {
+                throw new Error('Chave de API do Gemini não configurada.');
+              }
+              const ai = new GoogleGenAI({ apiKey });
               const prompt = `A partir do áudio, faça um resumo conciso e profissional da interação com o cliente ou lead. O resumo deve destacar os pontos principais, decisões tomadas e próximos passos, se houver. Responda apenas com o texto do resumo.`;
               
               const response = await ai.models.generateContent({

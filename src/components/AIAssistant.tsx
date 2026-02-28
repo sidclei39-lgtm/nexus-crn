@@ -37,7 +37,11 @@ export default function AIAssistant({ customers, setCustomers, deals, setDeals }
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Chave de API do Gemini não configurada.');
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `Você é um assistente avançado de CRM e gestão de vendas. Sua função é gerenciar um "Dashboard de Contatos" e um "Funil de Vendas" em tempo real.
       
       Mensagem do usuário: "${userMsg}"

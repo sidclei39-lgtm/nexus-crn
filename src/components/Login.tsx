@@ -21,7 +21,17 @@ export default function Login({ onLoginAdmin, onLoginClient, patients }: LoginPr
     
     // Check local storage for registered admins
     const savedAdmins = localStorage.getItem('nexus_admins');
-    const admins = savedAdmins ? JSON.parse(savedAdmins) : [{ email: 'admin@nexus.com', password: 'admin' }];
+    const defaultAdmins = [
+      { email: 'admin@nexus.com', password: 'admin', name: 'Admin' },
+      { email: 'sidclei39@gmail.com', password: 'sidclei123', name: 'Sidclei' }
+    ];
+    const admins = savedAdmins ? JSON.parse(savedAdmins) : defaultAdmins;
+    
+    // Ensure the new admin is always available even if others were registered
+    if (!admins.find((a: any) => a.email === 'sidclei39@gmail.com')) {
+      admins.push({ email: 'sidclei39@gmail.com', password: 'sidclei123', name: 'Sidclei' });
+      localStorage.setItem('nexus_admins', JSON.stringify(admins));
+    }
     
     const admin = admins.find((a: any) => a.email === email && a.password === password);
 
@@ -41,7 +51,11 @@ export default function Login({ onLoginAdmin, onLoginClient, patients }: LoginPr
     }
 
     const savedAdmins = localStorage.getItem('nexus_admins');
-    const admins = savedAdmins ? JSON.parse(savedAdmins) : [{ email: 'admin@nexus.com', password: 'admin' }];
+    const defaultAdmins = [
+      { email: 'admin@nexus.com', password: 'admin', name: 'Admin' },
+      { email: 'sidclei39@gmail.com', password: 'sidclei123', name: 'Sidclei' }
+    ];
+    const admins = savedAdmins ? JSON.parse(savedAdmins) : defaultAdmins;
     
     if (admins.find((a: any) => a.email === email)) {
       setError('Este e-mail já está cadastrado.');
@@ -245,7 +259,7 @@ export default function Login({ onLoginAdmin, onLoginClient, patients }: LoginPr
         
         {view === 'admin' && (
           <div className="text-xs text-zinc-500 text-center mt-4">
-            Dica: Use admin@nexus.com / admin ou crie uma nova conta
+            Dica: Use {email || 'sidclei39@gmail.com'} / {password || 'sidclei123'}
           </div>
         )}
         {view === 'client' && (

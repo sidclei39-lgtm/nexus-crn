@@ -32,10 +32,53 @@ export default function App() {
           const response = await fetch(`/api/data/${loggedInAdminEmail}`);
           if (response.ok) {
             const parsed = await response.json();
-            setCustomers(parsed.customers || initialCustomers);
-            setDeals(parsed.deals || initialDeals);
-            setTasks(parsed.tasks || initialTasks);
-            setPatients(parsed.patients || []);
+            const loadedCustomers = parsed.customers || [];
+            const loadedDeals = parsed.deals || [];
+            
+            // Auto-merge logic: check if Fabio dropshing (new list indicator) exists
+            const hasNewList = loadedCustomers.some((c: any) => c.name === 'Fabio dropshing');
+            
+            if (!hasNewList && initialCustomers.length > 20) {
+              // Merge missing initial customers
+              const missingInitial = initialCustomers.filter(ic => 
+                !loadedCustomers.some((lc: any) => lc.name.toLowerCase() === ic.name.toLowerCase())
+              );
+              
+              if (missingInitial.length > 0) {
+                const mergedCustomers = [...loadedCustomers, ...missingInitial];
+                const missingDeals = initialDeals.filter(id => 
+                  missingInitial.some(ml => ml.id === id.customerId)
+                );
+                const mergedDeals = [...loadedDeals, ...missingDeals];
+                
+                setCustomers(mergedCustomers);
+                setDeals(mergedDeals);
+                setTasks(parsed.tasks || initialTasks);
+                setPatients(parsed.patients || []);
+                
+                // Save merged data back to server
+                fetch(`/api/data/${loggedInAdminEmail}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    customers: mergedCustomers,
+                    deals: mergedDeals,
+                    tasks: parsed.tasks || initialTasks,
+                    patients: parsed.patients || []
+                  })
+                });
+              } else {
+                setCustomers(loadedCustomers);
+                setDeals(loadedDeals);
+                setTasks(parsed.tasks || initialTasks);
+                setPatients(parsed.patients || []);
+              }
+            } else {
+              setCustomers(loadedCustomers);
+              setDeals(loadedDeals);
+              setTasks(parsed.tasks || initialTasks);
+              setPatients(parsed.patients || []);
+            }
           } else {
             // Check localStorage for migration if server data is missing
             const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);

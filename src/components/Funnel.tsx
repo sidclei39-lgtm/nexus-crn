@@ -24,11 +24,33 @@ const stages: { id: DealStage; label: string; color: string }[] = [
 ];
 
 export const initialDeals: Deal[] = [
-  { id: '1', title: 'Software ERP', customerId: '1', value: 15000, stage: 'negotiation', probability: 80, expectedCloseDate: '2024-03-15' },
-  { id: '2', title: 'Consultoria Cloud', customerId: '2', value: 8000, stage: 'proposal', probability: 60, expectedCloseDate: '2024-03-20' },
-  { id: '3', title: 'App Mobile', customerId: '3', value: 25000, stage: 'lead', probability: 20, expectedCloseDate: '2024-04-10' },
-  { id: '4', title: 'Suporte Anual', customerId: '4', value: 5000, stage: 'closed', probability: 100, expectedCloseDate: '2024-02-28' },
-  { id: '5', title: 'Design System', customerId: '5', value: 12000, stage: 'contact', probability: 40, expectedCloseDate: '2024-03-25' },
+  { id: 'd1', title: 'Consultoria Fabio', customerId: '1', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-15' },
+  { id: 'd2', title: 'Consultoria Vanessa', customerId: '2', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-15' },
+  { id: 'd3', title: 'Consultoria Rafaela', customerId: '3', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd4', title: 'Consultoria Maria Laura', customerId: '4', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd5', title: 'Consultoria Vanessinha', customerId: '5', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-21' },
+  { id: 'd6', title: 'Consultoria Fernanda', customerId: '6', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd7', title: 'Consultoria Bylisinails', customerId: '7', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd8', title: 'Consultoria Rute', customerId: '8', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd9', title: 'Consultoria Adroaldo', customerId: '9', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd10', title: 'Consultoria Ju Soares', customerId: '10', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd11', title: 'Consultoria Natali', customerId: '11', value: 600, stage: 'lead', probability: 50, expectedCloseDate: '2026-03-03', planType: 'trimestral' },
+  { id: 'd12', title: 'Consultoria Deise', customerId: '12', value: 0, stage: 'lead', probability: 40, expectedCloseDate: '2026-03-26' },
+  { id: 'd13', title: 'Consultoria Henry', customerId: '13', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd14', title: 'Consultoria Barilanny', customerId: '14', value: 0, stage: 'lead', probability: 20, expectedCloseDate: '2026-03-22' },
+  { id: 'd15', title: 'Consultoria Gabriela', customerId: '15', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd16', title: 'Consultoria Erick', customerId: '16', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd17', title: 'Consultoria Gil', customerId: '17', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd18', title: 'Consultoria Marlon', customerId: '18', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd19', title: 'Consultoria Guilherme', customerId: '19', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd20', title: 'Consultoria Fabiola', customerId: '20', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd21', title: 'Consultoria Valeria', customerId: '21', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd22', title: 'Consultoria Douglas', customerId: '22', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-30' },
+  { id: 'd23', title: 'Consultoria Thais', customerId: '23', value: 0, stage: 'lead', probability: 30, expectedCloseDate: '2026-03-20' },
+  { id: 'd24', title: 'Consultoria Ranna', customerId: '24', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-20', planType: 'semestral' },
+  { id: 'd25', title: 'Consultoria Topera', customerId: '25', value: 0, stage: 'lead', probability: 30, expectedCloseDate: '2026-03-20' },
+  { id: 'd26', title: 'Consultoria Milena', customerId: '26', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-20' },
+  { id: 'd27', title: 'Consultoria John Maykon', customerId: '27', value: 0, stage: 'lead', probability: 10, expectedCloseDate: '2026-03-15' },
 ];
 
 interface FunnelProps {

@@ -19,22 +19,23 @@ import {
   Loader2
 } from 'lucide-react';
 import { Customer, CustomerStatus, Interaction, Deal, DealStage, Task } from '../types';
+import { initialDeals } from './Funnel';
 
 export const initialCustomers: Customer[] = [
-  { id: '1', name: 'Fabio dropshing', instagramUrl: 'https://surl.li/bgroia', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '13/02/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '16/02/2026', contatado: 'Sim', diasProximoContato: -10, email: '', phone: '', company: '', createdAt: '2026-02-13' },
-  { id: '2', name: 'Vanessa', instagramUrl: 'https://www.instagram.com/nessa.lima24', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '13/02/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '16/02/2026', contatado: 'Sim', diasProximoContato: -10, email: '', phone: '', company: '', createdAt: '2026-02-13' },
-  { id: '3', name: 'rafaela aquino', instagramUrl: 'https://www.instagram.com/rafaela__aquino77', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '4', name: 'Maria laura', instagramUrl: 'https://www.instagram.com/marialaurabt07', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, observacoes: 'Ficou de conversar com o Marido', email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '5', name: 'Vanessinha', instagramUrl: 'https://www.instagram.com/vanessinha_am', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '18/02/2026', ultimoContato: '18/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '21/02/2026', diasProximoContato: -5, email: '', phone: '', company: '', createdAt: '2026-02-18' },
-  { id: '6', name: 'Fernanda Moura', instagramUrl: 'https://www.instagram.com/f3rmour4', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '7', name: 'bylisinails', instagramUrl: 'https://www.instagram.com/bylisinails', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '8', name: 'Rute Costa', instagramUrl: 'https://www.instagram.com/rute_cost4_', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '9', name: 'adroaldo neto', instagramUrl: 'https://www.instagram.com/adroaldoneto_', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '10', name: 'Ju Soares', instagramUrl: 'https://www.instagram.com/ju_soares11', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '11', name: 'Natali Santos', instagramUrl: 'https://www.instagram.com/nathallysantoss_', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '24/02/2026', ultimoContato: '24/02/2026', status: 'Follow up', cadenciaDias: 7, proxContato: '03/03/2026', contatado: 'Sim', pacote: 'Trimestral', valor: 'R$ 600,00', diasProximoContato: 5, observacoes: 'Mandei mensagem agora pra ela,tanto no whathsaph e no insta', email: '', phone: '', company: '', createdAt: '2026-02-24' },
-  { id: '12', name: 'deise rebouças', instagramUrl: 'https://www.instagram.com/deisereboucas', origem: 'Instagram', objetivo: 'Hipertrofia', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Agendou', cadenciaDias: 7, proxContato: '26/02/2026', diasProximoContato: 0, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '13', name: 'Henry Lima', instagramUrl: 'https://www.instagram.com/henry_lima14', origem: 'Instagram', objetivo: 'Saúde', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '14', name: 'barilanny_5756', instagramUrl: 'https://www.instagram.com/barilanny_5756', origem: 'Instagram', objetivo: 'Saúde', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -4, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '1', name: 'Fabio dropshing', instagramUrl: 'https://surl.li/bgroia', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '13/02/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '16/02/2026', contatado: 'Sim', diasProximoContato: -12, email: '', phone: '', company: '', createdAt: '2026-02-13' },
+  { id: '2', name: 'Vanessa', instagramUrl: 'https://www.instagram.com/nessa.lima24', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '13/02/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '16/02/2026', contatado: 'Sim', diasProximoContato: -12, email: '', phone: '', company: '', createdAt: '2026-02-13' },
+  { id: '3', name: 'rafaela aquino', instagramUrl: 'https://www.instagram.com/rafaela__aquino77', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '4', name: 'Maria laura', instagramUrl: 'https://www.instagram.com/marialaurabt07', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, observacoes: 'Ficou de conversar com o Marido', email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '5', name: 'Vanessinha', instagramUrl: 'https://www.instagram.com/vanessinha_am', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '18/02/2026', ultimoContato: '18/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '21/02/2026', diasProximoContato: -7, email: '', phone: '', company: '', createdAt: '2026-02-18' },
+  { id: '6', name: 'Fernanda Moura', instagramUrl: 'https://www.instagram.com/f3rmour4', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '7', name: 'bylisinails', instagramUrl: 'https://www.instagram.com/bylisinails', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '8', name: 'Rute Costa', instagramUrl: 'https://www.instagram.com/rute_cost4_', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '9', name: 'adroaldo neto', instagramUrl: 'https://www.instagram.com/adroaldoneto_', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '10', name: 'Ju Soares', instagramUrl: 'https://www.instagram.com/ju_soares11', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Não (sem resp.)', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '11', name: 'Natali Santos', instagramUrl: 'https://www.instagram.com/nathallysantoss_', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '24/02/2026', ultimoContato: '24/02/2026', status: 'Follow up', cadenciaDias: 7, proxContato: '03/03/2026', contatado: 'Sim', pacote: 'Trimestral', valor: 'R$ 600,00', diasProximoContato: 3, observacoes: 'Mandei mensagem agora pra ela,tanto no whathsaph e no insta', email: '', phone: '', company: '', createdAt: '2026-02-24' },
+  { id: '12', name: 'deise rebouças', instagramUrl: 'https://www.instagram.com/deisereboucas', origem: 'Instagram', objetivo: 'Hipertrofia', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Agendou', cadenciaDias: 7, proxContato: '26/02/2026', diasProximoContato: -2, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '13', name: 'Henry Lima', instagramUrl: 'https://www.instagram.com/henry_lima14', origem: 'Instagram', objetivo: 'Saúde', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
+  { id: '14', name: 'barilanny_5756', instagramUrl: 'https://www.instagram.com/barilanny_5756', origem: 'Instagram', objetivo: 'Saúde', primeiroContato: '19/02/2026', ultimoContato: '19/02/2026', status: 'Lead', cadenciaDias: 3, proxContato: '22/02/2026', diasProximoContato: -6, email: '', phone: '', company: '', createdAt: '2026-02-19' },
   { id: '15', name: 'gabriela.c.a7', instagramUrl: 'https://www.instagram.com/gabriela.c.a7', origem: 'Instagram', status: '', email: '', phone: '', company: '', createdAt: '2026-02-19' },
   { id: '16', name: 'erick de moraes', instagramUrl: 'https://www.instagram.com/erickdemoraes_', origem: 'Instagram', status: '', email: '', phone: '', company: '', createdAt: '2026-02-19' },
   { id: '17', name: 'gil', instagramUrl: 'https://www.instagram.com/gil_professor28', origem: 'Instagram', status: '', email: '', phone: '', company: '', createdAt: '2026-02-19' },
@@ -43,10 +44,11 @@ export const initialCustomers: Customer[] = [
   { id: '20', name: 'fabiola nogueira', instagramUrl: 'https://www.instagram.com/fabiolanogueira.s', origem: 'Instagram', status: '', email: '', phone: '', company: '', createdAt: '2026-02-19' },
   { id: '21', name: 'valeria macedo', instagramUrl: 'https://www.instagram.com/val3ria_macedo', origem: 'Instagram', status: '', email: '', phone: '', company: '', createdAt: '2026-02-19' },
   { id: '22', name: 'douglas nairon', instagramUrl: 'https://www.instagram.com/douglas_nairon', origem: 'Instagram', status: '', email: '', phone: '', company: '', createdAt: '2026-02-19' },
-  { id: '23', name: 'Thais(follow up infinito)', instagramUrl: 'https://w.app/thais2', origem: 'Indicação', objetivo: 'Emagrecimento', primeiroContato: '09/01/2026', ultimoContato: '13/02/2026', status: 'Lead', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', diasProximoContato: -6, observacoes: 'Estar no follow up infinito', email: '', phone: '', company: '', createdAt: '2026-01-09' },
-  { id: '24', name: 'Ranna', instagramUrl: 'https://w.app/ranna', origem: 'Indicação', objetivo: 'Emagrecimento', primeiroContato: '05/01/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', pacote: 'Semestral', diasProximoContato: -6, observacoes: 'Entrei em contato 5x sem resposta,então não vou colocar na minha lista de lead,vou encerrar o contato', email: '', phone: '', company: '', createdAt: '2026-01-05' },
-  { id: '25', name: 'topera(follow up infinito)', instagramUrl: 'https://w.app/topera', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '26/01/2026', ultimoContato: '13/02/2026', status: 'Lead', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', diasProximoContato: -6, observacoes: 'Estar no follow up infinito', email: '', phone: '', company: '', createdAt: '2026-01-26' },
-  { id: '26', name: 'Milena', instagramUrl: 'https://w.app/milenafaria', origem: 'Indicação', objetivo: 'Emagrecimento', primeiroContato: '13/01/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', diasProximoContato: -6, observacoes: 'Entrei em contato 5x sem resposta,então não vou colocar na minha lista de lead,vou encerrar o contato', email: '', phone: '', company: '', createdAt: '2026-01-13' },
+  { id: '23', name: 'Thais(follow up infinito)', instagramUrl: 'https://w.app/thais2', origem: 'Indicação', objetivo: 'Emagrecimento', primeiroContato: '09/01/2026', ultimoContato: '13/02/2026', status: 'Lead', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', diasProximoContato: -8, observacoes: 'Estar no follow up infinito', email: '', phone: '', company: '', createdAt: '2026-01-09' },
+  { id: '24', name: 'Ranna', instagramUrl: 'https://w.app/ranna', origem: 'Indicação', objetivo: 'Emagrecimento', primeiroContato: '05/01/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', pacote: 'Semestral', diasProximoContato: -8, observacoes: 'Entrei em contato 5x sem resposta,então não vou colocar na minha lista de lead,vou encerrar o contato', email: '', phone: '', company: '', createdAt: '2026-01-05' },
+  { id: '25', name: 'topera(follow up infinito)', instagramUrl: 'https://w.app/topera', origem: 'Instagram', objetivo: 'Emagrecimento', primeiroContato: '26/01/2026', ultimoContato: '13/02/2026', status: 'Lead', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', diasProximoContato: -8, observacoes: 'Estar no follow up infinito', email: '', phone: '', company: '', createdAt: '2026-01-26' },
+  { id: '26', name: 'Milena', instagramUrl: 'https://w.app/milenafaria', origem: 'Indicação', objetivo: 'Emagrecimento', primeiroContato: '13/01/2026', ultimoContato: '13/02/2026', status: 'Não (sem resp.)', cadenciaDias: 7, proxContato: '20/02/2026', contatado: 'Sim', diasProximoContato: -8, observacoes: 'Entrei em contato 5x sem resposta,então não vou colocar na minha lista de lead,vou encerrar o contato', email: '', phone: '', company: '', createdAt: '2026-01-13' },
+  { id: '27', name: 'John maykon', email: '', phone: '', company: '', status: 'Lead', createdAt: '2026-02-28' },
 ];
 
 interface CRMProps {
@@ -720,6 +722,30 @@ export default function CRM({ customers, setCustomers, deals, setDeals, tasks, s
             <Download size={18} />
             Exportar
           </button>
+          <button 
+            onClick={() => {
+              const missingLeads = initialCustomers.filter(ic => 
+                !customers.some(c => c.name.toLowerCase() === ic.name.toLowerCase())
+              );
+              if (missingLeads.length > 0) {
+                setCustomers([...customers, ...missingLeads]);
+                // Also import corresponding deals
+                const missingDeals = initialDeals.filter(id => 
+                  missingLeads.some(ml => ml.id === id.customerId)
+                );
+                setDeals([...deals, ...missingDeals]);
+                alert(`${missingLeads.length} novos leads importados com sucesso!`);
+              } else {
+                alert('Todos os leads da lista já estão no seu sistema.');
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 text-zinc-300 font-bold rounded-xl hover:bg-zinc-700 transition-all border border-zinc-700"
+            title="Importar leads da lista padrão"
+          >
+            <Download size={18} />
+            Importar Leads
+          </button>
+
           <button 
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-black font-semibold rounded-xl hover:bg-emerald-400 transition-colors"

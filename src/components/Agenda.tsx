@@ -39,12 +39,25 @@ export default function Agenda({ tasks, setTasks, patients, setPatients, custome
   const [isRecording, setIsRecording] = useState(false);
   const [extractedData, setExtractedData] = useState<any>(null);
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [googleEvents, setGoogleEvents] = useState<any[]>([]);
   const [isAddingManualEvent, setIsAddingManualEvent] = useState(false);
   const [manualEvent, setManualEvent] = useState({
     patientName: '',
     time: '09:00',
     eventType: 'Consulta'
   });
+
+  const fetchGoogleEvents = async () => {
+    try {
+      const response = await fetch('/api/google/events');
+      if (response.ok) {
+        const data = await response.json();
+        setGoogleEvents(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch Google events:', error);
+    }
+  };
 
   const handleGoogleConnect = async () => {
     try {
@@ -71,6 +84,9 @@ export default function Agenda({ tasks, setTasks, patients, setPatients, custome
         if (response.ok) {
           const data = await response.json();
           setIsGoogleConnected(data.connected);
+          if (data.connected) {
+            fetchGoogleEvents();
+          }
         }
       } catch (error) {
         console.error('Failed to check Google Calendar status:', error);
@@ -85,6 +101,7 @@ export default function Agenda({ tasks, setTasks, patients, setPatients, custome
       }
       if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
         setIsGoogleConnected(true);
+        fetchGoogleEvents();
       }
     };
     window.addEventListener('message', handleMessage);
@@ -450,6 +467,26 @@ export default function Agenda({ tasks, setTasks, patients, setPatients, custome
           </button>
         )}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 h-fit">
+          {isGoogleConnected && googleEvents.length > 0 && (
+            <div className="mb-8 pb-6 border-b border-zinc-800">
+              <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Google Calendar</h4>
+              <div className="space-y-3">
+                {googleEvents.map((event) => (
+                  <div key={event.id} className="flex items-center gap-3 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                      <CalendarIcon size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{event.summary}</p>
+                      <p className="text-xs text-zinc-500">
+                        {event.start?.dateTime ? format(new Date(event.start.dateTime), 'HH:mm') : 'Dia todo'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-white">
               {isSameDay(selectedDate, new Date()) ? 'Hoje' : format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}

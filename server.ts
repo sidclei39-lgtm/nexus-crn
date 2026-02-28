@@ -1,9 +1,8 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
-import { getGoogleAuthUrl, getGoogleCalendar } from './src/services/google';
-import { google } from 'googleapis';
-import oauth2Client from './src/services/google';
+import { getGoogleAuthUrl, getTokensFromCode, getCalendarClient } from './src/services/google';
+import cookieSession from 'cookie-session';
 import bodyParser from 'body-parser';
 
 dotenv.config();
@@ -11,22 +10,40 @@ dotenv.config();
 async function createServer() {
   const app = express();
 
-  // Body parser middleware should be first
+  // Session middleware
+  app.use(cookieSession({
+    name: 'session',
+    keys: [process.env.SESSION_SECRET || 'crm-secret-key'],
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    secure: true,
+    sameSite: 'none',
+    httpOnly: true,
+  }));
+
+  // Body parser middleware
   app.use(bodyParser.json({ limit: '50mb' }));
   app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
-  // API routes must be registered BEFORE the Vite middleware
+  const getRedirectUri = (req: express.Request) => {
+    // Use APP_URL if available, otherwise fallback to request origin
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    return `${baseUrl}/api/google/callback`;
+  };
+
+  // API routes
   app.get('/api/google/auth-url', (req, res) => {
-    res.json({ url: getGoogleAuthUrl() });
+    const redirectUri = getRedirectUri(req);
+    res.json({ url: getGoogleAuthUrl(redirectUri) });
   });
 
   app.get('/api/google/status', (req, res) => {
-    const isConnected = !!(oauth2Client.credentials && oauth2Client.credentials.access_token);
+    const isConnected = !!(req.session && req.session.tokens);
     res.json({ connected: isConnected });
   });
 
   app.get('/api/google/callback', async (req, res) => {
     const { code, error } = req.query;
+    const redirectUri = getRedirectUri(req);
     
     if (error) {
       return res.status(400).send(`
@@ -39,7 +56,10 @@ async function createServer() {
     }
 
     try {
-      const calendar = await getGoogleCalendar(code as string);
+      const tokens = await getTokensFromCode(code as string, redirectUri);
+      if (req.session) {
+        req.session.tokens = tokens;
+      }
       res.send(`
         <html>
           <body>
@@ -56,7 +76,7 @@ async function createServer() {
         </html>
       `);
     } catch (err: any) {
-      console.error('Error getting Google Calendar:', err);
+      console.error('Error getting Google tokens:', err);
       res.status(500).send(`
         <html><body>
         <h3>Erro ao processar o código do Google</h3>
@@ -70,11 +90,11 @@ async function createServer() {
   app.post('/api/google/create-event', async (req, res) => {
     const { summary, description, start, end } = req.body;
     try {
-      if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
+      if (!req.session || !req.session.tokens) {
         return res.status(401).json({ error: 'Google Calendar not connected. Please connect your account first.' });
       }
 
-      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      const calendar = getCalendarClient(req.session.tokens);
       const event = await calendar.events.insert({
         calendarId: 'primary',
         requestBody: {
@@ -88,6 +108,27 @@ async function createServer() {
     } catch (error: any) {
       console.error('Error creating Google Calendar event:', error);
       res.status(500).json({ error: error.message || 'Failed to create event' });
+    }
+  });
+
+  app.get('/api/google/events', async (req, res) => {
+    try {
+      if (!req.session || !req.session.tokens) {
+        return res.status(401).json({ error: 'Not connected' });
+      }
+
+      const calendar = getCalendarClient(req.session.tokens);
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin: new Date().toISOString(),
+        maxResults: 10,
+        singleEvents: true,
+        orderBy: 'startTime',
+      });
+      res.json(response.data.items);
+    } catch (error: any) {
+      console.error('Error fetching Google Calendar events:', error);
+      res.status(500).json({ error: error.message || 'Failed to fetch events' });
     }
   });
 

@@ -301,14 +301,22 @@ export default function Funnel({ customers, deals, setDeals, setPatients }: Funn
                                       </div>
                                     </div>
 
-                                    {deal.stage === 'closed' && (
-                                      <div className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-lg border ${
-                                        deal.paymentConfirmed 
-                                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                                          : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
-                                      }`}>
-                                        <DollarSign size={12} />
-                                        {deal.paymentConfirmed ? 'PAGAMENTO CONFIRMADO' : 'AGUARDANDO PAGAMENTO'}
+                                    {(deal.paymentMethod || deal.paymentConfirmed !== undefined) && (
+                                      <div className="flex flex-wrap gap-2">
+                                        {deal.paymentMethod && (
+                                          <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-md border border-zinc-700">
+                                            {deal.paymentMethod === 'pix_vista' ? 'PIX à Vista' : 
+                                             deal.paymentMethod === 'pix_parcelado' ? `PIX ${deal.installments}x` : 
+                                             `Cartão ${deal.installments}x`}
+                                          </span>
+                                        )}
+                                        <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                          deal.paymentConfirmed 
+                                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                                            : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+                                        }`}>
+                                          {deal.paymentConfirmed ? 'PAGO' : 'PENDENTE'}
+                                        </div>
                                       </div>
                                     )}
 
@@ -685,6 +693,51 @@ export default function Funnel({ customers, deals, setDeals, setPatients }: Funn
                       className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
                     />
                   </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-1">Forma de Pagamento</p>
+                    <select
+                      value={selectedDeal.paymentMethod || 'pix_vista'}
+                      onChange={(e) => {
+                        const method = e.target.value as any;
+                        setSelectedDeal({
+                          ...selectedDeal, 
+                          paymentMethod: method,
+                          installments: method === 'pix_vista' ? 1 : selectedDeal.installments
+                        });
+                      }}
+                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+                    >
+                      <option value="pix_vista">PIX à Vista</option>
+                      <option value="pix_parcelado">PIX Parcelado</option>
+                      <option value="card">Cartão (Asaas)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-1">Parcelas</p>
+                    <select
+                      disabled={selectedDeal.paymentMethod === 'pix_vista'}
+                      value={selectedDeal.installments || 1}
+                      onChange={(e) => setSelectedDeal({...selectedDeal, installments: Number(e.target.value)})}
+                      className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-zinc-200 focus:ring-1 focus:ring-emerald-500 outline-none transition-all disabled:opacity-50"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                        <option key={n} value={n}>{n}x</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500 mb-1">Status Pagamento</p>
+                    <button
+                      onClick={() => setSelectedDeal({ ...selectedDeal, paymentConfirmed: !selectedDeal.paymentConfirmed })}
+                      className={`w-full py-1.5 px-3 rounded-lg border text-xs font-bold transition-all ${
+                        selectedDeal.paymentConfirmed 
+                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' 
+                          : 'bg-yellow-500/10 border-yellow-500 text-yellow-400'
+                      }`}
+                    >
+                      {selectedDeal.paymentConfirmed ? 'CONFIRMADO' : 'PENDENTE'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className={`mt-6 pt-6 border-t border-zinc-800 space-y-6 ${
@@ -1025,13 +1078,22 @@ export default function Funnel({ customers, deals, setDeals, setPatients }: Funn
                         </div>
                         <div>
                           <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">Pagamento</p>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                            deal.paymentConfirmed 
-                              ? 'bg-emerald-500/10 text-emerald-400' 
-                              : 'bg-yellow-500/10 text-yellow-400'
-                          }`}>
-                            {deal.paymentConfirmed ? 'CONFIRMADO' : 'PENDENTE'}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md w-fit ${
+                              deal.paymentConfirmed 
+                                ? 'bg-emerald-500/10 text-emerald-400' 
+                                : 'bg-yellow-500/10 text-yellow-400'
+                            }`}>
+                              {deal.paymentConfirmed ? 'CONFIRMADO' : 'PENDENTE'}
+                            </span>
+                            {deal.paymentMethod && (
+                              <span className="text-[10px] text-zinc-400">
+                                {deal.paymentMethod === 'pix_vista' ? 'PIX à Vista' : 
+                                 deal.paymentMethod === 'pix_parcelado' ? `PIX ${deal.installments}x` : 
+                                 `Cartão ${deal.installments}x`}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -4,9 +4,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const createOAuth2Client = (redirectUri?: string) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  
   return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
+    clientId,
+    clientSecret,
     redirectUri || process.env.GOOGLE_REDIRECT_URI
   );
 };

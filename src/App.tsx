@@ -26,62 +26,139 @@ export default function App() {
 
   // Load data when admin logs in
   useEffect(() => {
-    if (userRole === 'admin' && loggedInAdminEmail) {
-      const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        setCustomers(parsed.customers || initialCustomers);
-        setDeals(parsed.deals || initialDeals);
-        setTasks(parsed.tasks || initialTasks);
-        setPatients(parsed.patients || []);
-      } else if (loggedInAdminEmail === 'admin@nexus.com') {
-        // Legacy data fallback for default admin
-        const legacyCustomers = localStorage.getItem('customers');
-        const legacyDeals = localStorage.getItem('deals');
-        const legacyTasks = localStorage.getItem('tasks');
-        const legacyPatients = localStorage.getItem('patients');
-        
-        setCustomers(legacyCustomers ? JSON.parse(legacyCustomers) : initialCustomers);
-        setDeals(legacyDeals ? JSON.parse(legacyDeals) : initialDeals);
-        setTasks(legacyTasks ? JSON.parse(legacyTasks) : initialTasks);
-        setPatients(legacyPatients ? JSON.parse(legacyPatients) : []);
-      } else {
-        // New admin, empty data
-        setCustomers([]);
-        setDeals([]);
-        setTasks([]);
-        setPatients([]);
+    const loadData = async () => {
+      if (userRole === 'admin' && loggedInAdminEmail) {
+        try {
+          const response = await fetch(`/api/data/${loggedInAdminEmail}`);
+          if (response.ok) {
+            const parsed = await response.json();
+            setCustomers(parsed.customers || initialCustomers);
+            setDeals(parsed.deals || initialDeals);
+            setTasks(parsed.tasks || initialTasks);
+            setPatients(parsed.patients || []);
+          } else {
+            // Check localStorage for migration if server data is missing
+            const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);
+            if (savedData) {
+              const parsed = JSON.parse(savedData);
+              setCustomers(parsed.customers || initialCustomers);
+              setDeals(parsed.deals || initialDeals);
+              setTasks(parsed.tasks || initialTasks);
+              setPatients(parsed.patients || []);
+              
+              // Migrate to server
+              fetch(`/api/data/${loggedInAdminEmail}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: savedData
+              });
+            } else if (loggedInAdminEmail === 'admin@nexus.com') {
+              // Legacy data fallback for default admin
+              const legacyCustomers = localStorage.getItem('customers');
+              const legacyDeals = localStorage.getItem('deals');
+              const legacyTasks = localStorage.getItem('tasks');
+              const legacyPatients = localStorage.getItem('patients');
+              
+              const customersData = legacyCustomers ? JSON.parse(legacyCustomers) : initialCustomers;
+              const dealsData = legacyDeals ? JSON.parse(legacyDeals) : initialDeals;
+              const tasksData = legacyTasks ? JSON.parse(legacyTasks) : initialTasks;
+              const patientsData = legacyPatients ? JSON.parse(legacyPatients) : [];
+
+              setCustomers(customersData);
+              setDeals(dealsData);
+              setTasks(tasksData);
+              setPatients(patientsData);
+
+              // Migrate to server
+              fetch(`/api/data/${loggedInAdminEmail}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  customers: customersData,
+                  deals: dealsData,
+                  tasks: tasksData,
+                  patients: patientsData
+                })
+              });
+            } else {
+              // New admin, empty data
+              setCustomers([]);
+              setDeals([]);
+              setTasks([]);
+              setPatients([]);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading data from server:', error);
+        }
       }
-    }
+    };
+    loadData();
   }, [userRole, loggedInAdminEmail]);
 
   // Load data when client logs in
   useEffect(() => {
-    if (userRole === 'client' && loggedInAdminEmail) {
-      if (loggedInAdminEmail === 'legacy') {
-        const legacyPatients = localStorage.getItem('patients');
-        setPatients(legacyPatients ? JSON.parse(legacyPatients) : []);
-      } else {
-        const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          setPatients(parsed.patients || []);
+    const loadClientData = async () => {
+      if (userRole === 'client' && loggedInAdminEmail) {
+        try {
+          const response = await fetch(`/api/data/${loggedInAdminEmail}`);
+          if (response.ok) {
+            const parsed = await response.json();
+            setPatients(parsed.patients || []);
+          } else {
+            // Fallback to localStorage
+            if (loggedInAdminEmail === 'legacy') {
+              const legacyPatients = localStorage.getItem('patients');
+              setPatients(legacyPatients ? JSON.parse(legacyPatients) : []);
+            } else {
+              const savedData = localStorage.getItem(`nexus_data_${loggedInAdminEmail}`);
+              if (savedData) {
+                const parsed = JSON.parse(savedData);
+                setPatients(parsed.patients || []);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error loading client data from server:', error);
         }
       }
-    }
+    };
+    loadClientData();
   }, [userRole, loggedInAdminEmail]);
 
   // Save data when it changes
   useEffect(() => {
-    if (userRole === 'admin' && loggedInAdminEmail) {
-      const dataToSave = {
-        customers,
-        deals,
-        tasks,
-        patients
-      };
-      localStorage.setItem(`nexus_data_${loggedInAdminEmail}`, JSON.stringify(dataToSave));
-    }
+    const saveData = async () => {
+      if (userRole === 'admin' && loggedInAdminEmail) {
+        const dataToSave = {
+          customers,
+          deals,
+          tasks,
+          patients
+        };
+        
+        // Save to server
+        try {
+          await fetch(`/api/data/${loggedInAdminEmail}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dataToSave)
+          });
+        } catch (error) {
+          console.error('Error saving data to server:', error);
+        }
+
+        // Also save to localStorage as backup
+        localStorage.setItem(`nexus_data_${loggedInAdminEmail}`, JSON.stringify(dataToSave));
+      }
+    };
+    
+    // Debounce saving to avoid too many requests
+    const timer = setTimeout(() => {
+      saveData();
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [customers, deals, tasks, patients, userRole, loggedInAdminEmail]);
 
   const renderAdminContent = () => {

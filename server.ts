@@ -4,8 +4,21 @@ import dotenv from 'dotenv';
 import { getGoogleAuthUrl, getTokensFromCode, getCalendarClient } from './src/services/google';
 import cookieSession from 'cookie-session';
 import bodyParser from 'body-parser';
+import Database from 'better-sqlite3';
+import path from 'path';
 
 dotenv.config();
+
+// Initialize database
+const db = new Database('crm.db');
+
+// Create tables if they don't exist
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_data (
+    email TEXT PRIMARY KEY,
+    data TEXT
+  )
+`);
 
 async function createServer() {
   const app = express();
@@ -29,6 +42,34 @@ async function createServer() {
     const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
     return `${baseUrl}/api/google/callback`;
   };
+
+  // API routes for data persistence
+  app.get('/api/data/:email', (req, res) => {
+    const { email } = req.params;
+    try {
+      const row = db.prepare('SELECT data FROM admin_data WHERE email = ?').get(email) as { data: string } | undefined;
+      if (row) {
+        res.json(JSON.parse(row.data));
+      } else {
+        res.status(404).json({ error: 'No data found' });
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/data/:email', (req, res) => {
+    const { email } = req.params;
+    const data = JSON.stringify(req.body);
+    try {
+      db.prepare('INSERT OR REPLACE INTO admin_data (email, data) VALUES (?, ?)').run(email, data);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error saving data:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   // API routes
   app.get('/api/google/auth-url', (req, res) => {
